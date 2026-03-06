@@ -1,0 +1,29 @@
+{
+  "dataset": "/home/umer/Desktop/goldf/training_data/golf_swings_dataset.csv",
+  "num_swings": 26,
+  "num_features": 126,
+  "device": "cpu",
+  "classifier": {
+    "cv_accuracy": 0.96,
+    "cv_accuracy_std": 0.07999999999999999,
+    "cv_f1": 0.9561904761904761,
+    "cv_f1_std": 0.08761904761904765,
+    "cv_auc": 0.9,
+    "cv_auc_std": 0.20000000000000004,
+    "n_folds": 5,
+    "confusion_matrix": [
+      [
+        7,
+        1
+      ],
+      [
+        0,
+        18
+      ]
+    ],
+    "note": "Metrics from K-Fold Cross-Validation (honest estimate)"
+  },
+  "predictor": {
+    "test_r2": 0.6124603152275085
+  }
+}

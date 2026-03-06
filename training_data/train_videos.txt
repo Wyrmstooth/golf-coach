@@ -1,0 +1,29 @@
+# Training Videos
+# Good Swings
+good:/home/umer/Desktop/goldf/good_swings/2.mp4
+good:/home/umer/Desktop/goldf/good_swings/8.mp4
+good:/home/umer/Desktop/goldf/good_swings/5.mp4
+good:/home/umer/Desktop/goldf/good_swings/6.mp4
+good:/home/umer/Desktop/goldf/good_swings/9.mp4
+good:/home/umer/Desktop/goldf/good_swings/4.mp4
+good:/home/umer/Desktop/goldf/good_swings/1.mp4
+good:/home/umer/Desktop/goldf/good_swings/10.mp4
+# Bad Swings
+bad:/home/umer/Desktop/goldf/bad_swings/bad-5.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-1.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-17.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-9.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-4.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-15.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-3.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-8.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-6.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-14.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-13.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/4.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-11.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/3.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/1.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/2.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-2.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-7.mp4

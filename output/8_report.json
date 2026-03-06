@@ -1,0 +1,106 @@
+{
+  "video": "good_swings/8.mp4",
+  "phase_ranges": {
+    "ADDRESS": [
+      53,
+      81
+    ],
+    "BACKSWING": [
+      81,
+      301
+    ],
+    "TOP": [
+      301,
+      311
+    ],
+    "DOWNSWING": [
+      311,
+      435
+    ],
+    "IMPACT": [
+      435,
+      458
+    ],
+    "FOLLOW_THROUGH": [
+      458,
+      459
+    ]
+  },
+  "swing_frames": {
+    "start": 81,
+    "end": 459
+  },
+  "fault_analysis": {
+    "overall_score": 26.258748769760132,
+    "swing_quality": "Excellent",
+    "fault_details": {
+      "faults": [
+        {
+          "phase": "ADDRESS",
+          "severity": "minor",
+          "title": "Too Upright",
+          "description": "Spine angle is -50.9\u00b0 (too upright)",
+          "fix": "Bend forward more from the hips",
+          "feature": "0-SPINE-ANGLE",
+          "value": -50.92779980697408,
+          "expected": "-55\u00b0 to -68\u00b0"
+        }
+      ],
+      "by_phase": {
+        "ADDRESS": [
+          {
+            "phase": "ADDRESS",
+            "severity": "minor",
+            "title": "Too Upright",
+            "description": "Spine angle is -50.9\u00b0 (too upright)",
+            "fix": "Bend forward more from the hips",
+            "feature": "0-SPINE-ANGLE",
+            "value": -50.92779980697408,
+            "expected": "-55\u00b0 to -68\u00b0"
+          }
+        ],
+        "BACKSWING": [],
+        "TOP": [],
+        "DOWNSWING": [],
+        "IMPACT": [],
+        "FOLLOW_THROUGH": []
+      },
+      "by_severity": {
+        "critical": [],
+        "major": [],
+        "minor": [
+          {
+            "phase": "ADDRESS",
+            "severity": "minor",
+            "title": "Too Upright",
+            "description": "Spine angle is -50.9\u00b0 (too upright)",
+            "fix": "Bend forward more from the hips",
+            "feature": "0-SPINE-ANGLE",
+            "value": -50.92779980697408,
+            "expected": "-55\u00b0 to -68\u00b0"
+          }
+        ]
+      },
+      "summary": {
+        "total_faults": 1,
+        "critical_count": 0,
+        "major_count": 0,
+        "minor_count": 1
+      }
+    },
+    "messages": [
+      "\ud83d\udfe1 [ADDRESS] Too Upright: Spine angle is -50.9\u00b0 (too upright) \u2192 Bend forward more from the hips"
+    ],
+    "critical_faults": []
+  },
+  "performance_prediction": {
+    "BallSpeed": 46.456783294677734,
+    "Distance": 126.29364013671875,
+    "Carry": 110.29370880126953,
+    "confidence": 85.0
+  },
+  "outputs": {
+    "plot": "output/8_analysis.png",
+    "annotated_video": "output/8_annotated.mp4"
+  }
+}

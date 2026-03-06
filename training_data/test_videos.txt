@@ -1,0 +1,8 @@
+# Test Videos
+# Good Swings
+good:/home/umer/Desktop/goldf/good_swings/7.mp4
+good:/home/umer/Desktop/goldf/good_swings/3.mp4
+# Bad Swings
+bad:/home/umer/Desktop/goldf/bad_swings/bad-12.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-10.mp4
+bad:/home/umer/Desktop/goldf/bad_swings/bad-16.mp4

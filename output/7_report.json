@@ -1,0 +1,106 @@
+{
+  "video": "test_videos/good_swings/7.mp4",
+  "phase_ranges": {
+    "ADDRESS": [
+      0,
+      172
+    ],
+    "BACKSWING": [
+      172,
+      205
+    ],
+    "TOP": [
+      205,
+      215
+    ],
+    "DOWNSWING": [
+      215,
+      221
+    ],
+    "IMPACT": [
+      221,
+      224
+    ],
+    "FOLLOW_THROUGH": [
+      224,
+      241
+    ]
+  },
+  "swing_frames": {
+    "start": 172,
+    "end": 241
+  },
+  "fault_analysis": {
+    "overall_score": 30.526164174079895,
+    "swing_quality": "Good",
+    "fault_details": {
+      "faults": [
+        {
+          "phase": "BACKSWING",
+          "severity": "major",
+          "title": "Early Hip Slide",
+          "description": "Hips shifting toward target (-0.08)",
+          "fix": "Keep hips stable, rotate dont slide",
+          "feature": "1-HIP-SHIFTED",
+          "value": -0.0759760632133174,
+          "expected": "0.0 to 0.15"
+        }
+      ],
+      "by_phase": {
+        "ADDRESS": [],
+        "BACKSWING": [
+          {
+            "phase": "BACKSWING",
+            "severity": "major",
+            "title": "Early Hip Slide",
+            "description": "Hips shifting toward target (-0.08)",
+            "fix": "Keep hips stable, rotate dont slide",
+            "feature": "1-HIP-SHIFTED",
+            "value": -0.0759760632133174,
+            "expected": "0.0 to 0.15"
+          }
+        ],
+        "TOP": [],
+        "DOWNSWING": [],
+        "IMPACT": [],
+        "FOLLOW_THROUGH": []
+      },
+      "by_severity": {
+        "critical": [],
+        "major": [
+          {
+            "phase": "BACKSWING",
+            "severity": "major",
+            "title": "Early Hip Slide",
+            "description": "Hips shifting toward target (-0.08)",
+            "fix": "Keep hips stable, rotate dont slide",
+            "feature": "1-HIP-SHIFTED",
+            "value": -0.0759760632133174,
+            "expected": "0.0 to 0.15"
+          }
+        ],
+        "minor": []
+      },
+      "summary": {
+        "total_faults": 1,
+        "critical_count": 0,
+        "major_count": 1,
+        "minor_count": 0
+      }
+    },
+    "messages": [
+      "\ud83d\udfe0 [BACKSWING] Early Hip Slide: Hips shifting toward target (-0.08) \u2192 Keep hips stable, rotate dont slide"
+    ],
+    "critical_faults": []
+  },
+  "performance_prediction": {
+    "BallSpeed": 39.418701171875,
+    "Distance": 86.97896575927734,
+    "Carry": 76.97496032714844,
+    "confidence": 85.0
+  },
+  "outputs": {
+    "plot": "output/7_analysis.png",
+    "annotated_video": "output/7_annotated.mp4"
+  }
+}

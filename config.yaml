@@ -1,0 +1,133 @@
+# Golf Swing Analysis Configuration
+
+# Pose Detection Settings
+pose_detection:
+  model_complexity: 2 # 0, 1, or 2 (higher = more accurate, slower)
+  min_detection_confidence: 0.5
+  min_tracking_confidence: 0.5
+  enable_segmentation: false
+  smooth_landmarks: true
+
+# Camera Settings
+camera:
+  device_id: 0
+  width: 1280
+  height: 720
+  fps: 30
+
+# Swing Phase Detection Settings
+phase_detection:
+  # Statistical thresholds derived from CaddieSet dataset
+  # 6 phases: ADDRESS(0), BACKSWING(1), TOP(2), DOWNSWING(3), IMPACT(4), FOLLOW_THROUGH(5)
+
+  min_phase_frames: 3 # Minimum frames to confirm phase transition
+  smoothing_window: 5 # Frames for temporal smoothing
+
+  # Phase transition thresholds (will be populated from dataset analysis)
+  use_dataset_rules: true
+
+# Live Posture Correction Settings
+posture_correction:
+  # Address phase alignment thresholds
+  shoulder_alignment_tolerance: 15.0 # degrees
+  hip_alignment_tolerance: 15.0
+  knee_alignment_tolerance: 10.0
+  spine_angle_range: [5.0, 20.0] # Min-max acceptable spine tilt
+
+  # Feedback settings
+  show_skeleton: true
+  show_angles: true
+  show_corrections: true
+  voice_feedback: false # Future feature
+
+# Visualization Settings
+visualization:
+  show_skeleton: true
+  show_angles: true
+  show_corrections: true
+  skeleton_color: [0, 255, 0] # Green (BGR)
+  joint_color: [0, 0, 255] # Red
+  skeleton_thickness: 2
+  joint_radius: 5
+  text_color: [255, 255, 255] # White
+  text_scale: 0.6
+  text_thickness: 2
+
+# Dataset Settings
+dataset:
+  caddieSet_path: "CaddieSet.csv"
+  golfswing_images_path: "golfswing/images"
+  output_path: "output"
+
+# Feature Extraction Settings
+features:
+  # CaddieSet features to calculate
+  angles:
+    - "SHOULDER_ANGLE"
+    - "HIP_ANGLE"
+    - "SPINE_ANGLE"
+    - "LEFT_ARM_ANGLE"
+    - "RIGHT_ARM_ANGLE"
+    - "LEFT_LEG_ANGLE"
+    - "RIGHT_LEG_ANGLE"
+    - "LOWER_ANGLE"
+
+  positions:
+    - "HEAD_LOC"
+    - "HIP_LINE"
+    - "HIP_SHIFTED"
+    - "SHOULDER_LOC"
+
+  rotations:
+    - "HIP_ROTATION"
+    - "SHOULDER_ROTATION"
+
+# Training Parameters
+training:
+  test_split: 0.2
+  random_seed: 42
+  batch_size: 32
+  epochs: 50
+  learning_rate: 0.001
+
+# ML Models Configuration
+ml_models:
+  # Fault Detection (Anomaly-based)
+  fault_detection:
+    enabled: true
+    method: "isolation_forest" # or "one_class_svm"
+    contamination: 0.1 # Expected % of outliers
+
+  # Performance Prediction
+  performance_prediction:
+    enabled: true
+    model_type: "random_forest"
+    targets:
+      - ball_speed
+      - distance
+      - carry
+
+# Module 3: Ball Tracking & Trajectory Analysis
+module3:
+  enabled: true
+
+  ball_detection:
+    # Path to YOLOv8 golf ball detection model (trained separately)
+    model_path: "models/ball_detector.pt"
+    conf_threshold: 0.4
+    iou_threshold: 0.45
+    device: "auto"  # "auto", "cpu", or "cuda"
+
+  ball_tracking:
+    # Frames before and after IMPACT phase to search for the ball
+    window_before_impact: 5
+    window_after_impact: 70
+    min_confidence: 0.4
+    max_interpolation_gap: 5  # max consecutive missing frames to interpolate
+
+  distance_estimation:
+    # Simple calibration: approximate meters per horizontal pixel at the range
+    # You should calibrate this for your camera setup.
+    pixel_to_meter: 0.02   # 1 pixel ≈ 2 cm (example value)
+    gravity: 9.81          # m/s^2
+    min_points: 6
