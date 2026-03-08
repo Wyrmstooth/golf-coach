@@ -242,7 +242,7 @@ def video_analysis_mode():
                                 st.markdown("### Fault Analysis")
                                 score = report['fault_analysis']['overall_score']
                                 
-                                # Color-coded score
+                                # Color-coded overall score
                                 if score < 20:
                                     st.success(f"🏆 Fault Score: {score:.1f}/100 - Excellent!")
                                 elif score < 50:
@@ -252,33 +252,126 @@ def video_analysis_mode():
                                 else:
                                     st.error(f"🔴 Fault Score: {score:.1f}/100 - Significant issues")
                                 
-                                # Display faults by severity if available
-                                fault_details = report['fault_analysis'].get('fault_details', {})
-                                by_severity = fault_details.get('by_severity', {})
+                                # Structured fault data
+                                fault_details = report['fault_analysis'].get('fault_details', {}) or {}
+                                by_severity = fault_details.get('by_severity', {}) or {}
+                                by_phase = fault_details.get('by_phase', {}) or {}
+                                phase_summary = report.get('phase_fault_summary') or {}
                                 
-                                # Critical faults
+                                # Phase overview strip (quick glance across 6 phases)
+                                if phase_summary:
+                                    st.markdown("#### Phase Overview")
+                                    phase_order = [
+                                        "ADDRESS",
+                                        "BACKSWING",
+                                        "TOP",
+                                        "DOWNSWING",
+                                        "IMPACT",
+                                        "FOLLOW_THROUGH",
+                                    ]
+                                    severity_colors = {
+                                        "none": "#27ae60",      # green
+                                        "minor": "#f1c40f",     # yellow
+                                        "major": "#e67e22",     # orange
+                                        "critical": "#e74c3c",  # red
+                                    }
+                                    cards_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;'>"
+                                    for phase_name in phase_order:
+                                        summary = phase_summary.get(phase_name, {})
+                                        max_sev = (summary.get("max_severity") or "none").lower()
+                                        color = severity_colors.get(max_sev, "#7f8c8d")
+                                        counts = summary.get("counts", {}) or {}
+                                        total_issues = sum(int(v) for v in counts.values())
+                                        label = f"{phase_name}<br/><span style='font-size:11px;'>{total_issues} issue{'s' if total_issues != 1 else ''}</span>"
+                                        cards_html += (
+                                            f"<div style='flex:1 1 90px;padding:8px;"
+                                            f"background-color:{color};color:white;border-radius:6px;"
+                                            f"text-align:center;font-size:12px;'>"
+                                            f"{label}</div>"
+                                        )
+                                    cards_html += "</div>"
+                                    st.markdown(cards_html, unsafe_allow_html=True)
+
+                                # Display faults by severity (global view)
                                 critical = by_severity.get('critical', [])
                                 if critical:
-                                    st.markdown("**🔴 Critical Issues:**")
+                                    st.markdown("**🔴 Critical Issues (all phases):**")
                                     for fault in critical[:3]:  # Show top 3
                                         st.error(f"**{fault.get('phase', '')}** - {fault.get('title', '')}: {fault.get('fix', '')}")
                                 
-                                # Major faults
                                 major = by_severity.get('major', [])
                                 if major:
-                                    st.markdown("**🟠 Major Issues:**")
+                                    st.markdown("**🟠 Major Issues (all phases):**")
                                     for fault in major[:3]:
                                         st.warning(f"**{fault.get('phase', '')}** - {fault.get('title', '')}: {fault.get('fix', '')}")
                                 
-                                # Minor faults
                                 minor = by_severity.get('minor', [])
                                 if minor:
-                                    st.markdown("**🟡 Minor Issues:**")
+                                    st.markdown("**🟡 Minor Issues (all phases):**")
                                     for fault in minor[:2]:
                                         st.info(f"**{fault.get('phase', '')}** - {fault.get('title', '')}")
                                 
+                                # Per-phase detail panels
+                                if phase_summary or by_phase:
+                                    st.markdown("### Phase-by-phase Issues")
+                                    phase_order = [
+                                        "ADDRESS",
+                                        "BACKSWING",
+                                        "TOP",
+                                        "DOWNSWING",
+                                        "IMPACT",
+                                        "FOLLOW_THROUGH",
+                                    ]
+                                    severity_labels = {
+                                        "none": "No issues",
+                                        "minor": "Minor",
+                                        "major": "Major",
+                                        "critical": "Critical",
+                                    }
+                                    severity_emoji = {
+                                        "critical": "🔴",
+                                        "major": "🟠",
+                                        "minor": "🟡",
+                                    }
+                                    
+                                    for phase_name in phase_order:
+                                        faults_for_phase = by_phase.get(phase_name, []) or []
+                                        summary = phase_summary.get(phase_name, {})
+                                        max_sev = (summary.get("max_severity") or "none").lower()
+                                        score = summary.get("score")
+                                        header_suffix = severity_labels.get(max_sev, "No data")
+                                        header = f"{phase_name} – {header_suffix}"
+                                        if score is not None and score > 0:
+                                            header += f" (score {score:.0f}/100)"
+                                        
+                                        # Expand problem phases by default, others collapsed
+                                        expanded = bool(faults_for_phase and max_sev in ("critical", "major"))
+                                        with st.expander(header, expanded=expanded):
+                                            if not faults_for_phase:
+                                                st.markdown("✅ No significant issues detected in this phase.")
+                                            else:
+                                                for fault in faults_for_phase:
+                                                    sev = (fault.get("severity") or "minor").lower()
+                                                    emoji = severity_emoji.get(sev, "⚠️")
+                                                    title = fault.get("title", "")
+                                                    description = fault.get("description", "")
+                                                    fix = fault.get("fix", "")
+                                                    expected = fault.get("expected")
+                                                    value = fault.get("value")
+
+                                                    st.markdown(f"{emoji} **{title}**")
+                                                    if description:
+                                                        st.markdown(f"- **Issue**: {description}")
+                                                    if fix:
+                                                        st.markdown(f"- **Fix**: {fix}")
+                                                    if expected is not None:
+                                                        try:
+                                                            st.caption(f"Expected: {expected} (observed {float(value):.1f})")
+                                                        except Exception:
+                                                            st.caption(f"Expected: {expected}")
+
                                 # Fallback to old format if no detailed faults
-                                if not critical and not major and not minor:
+                                if not critical and not major and not minor and not (phase_summary or by_phase):
                                     old_faults = report['fault_analysis'].get('critical_faults', [])
                                     if old_faults:
                                         st.markdown("**Issues Found:**")
@@ -324,6 +417,7 @@ def video_analysis_mode():
                                 if files.get('plot') and Path(files['plot']).exists():
                                     st.markdown("#### Ball Trajectory Plot")
                                     st.image(files['plot'], use_container_width=True)
+                                    st.caption("Horizontal and vertical ball displacement over time, with colored bands showing swing phases.")
 
                                 if files.get('csv') and Path(files['csv']).exists():
                                     with open(files['csv'], 'rb') as f_csv:

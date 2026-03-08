@@ -1,0 +1,127 @@
+{
+  "video": "C:\\Users\\munib\\AppData\\Local\\Temp\\tmp23g1z1ig.mp4",
+  "phase_ranges": {
+    "ADDRESS": [
+      0,
+      70
+    ],
+    "BACKSWING": [
+      70,
+      161
+    ],
+    "TOP": [
+      161,
+      171
+    ],
+    "DOWNSWING": [
+      171,
+      223
+    ],
+    "IMPACT": [
+      223,
+      231
+    ],
+    "FOLLOW_THROUGH": [
+      231,
+      232
+    ]
+  },
+  "swing_frames": {
+    "start": 70,
+    "end": 232
+  },
+  "fault_analysis": {
+    "overall_score": 33.11036229133606,
+    "swing_quality": "Unknown",
+    "fault_details": {
+      "faults": [
+        {
+          "phase": "TOP",
+          "severity": "major",
+          "title": "Left Arm Breakdown",
+          "description": "Left arm bent to 89.5\u00b0 (should be straighter)",
+          "fix": "Maintain straighter left arm at top",
+          "feature": "2-LEFT-ARM-ANGLE",
+          "value": 89.49895381681466,
+          "expected": "100\u00b0 to 160\u00b0"
+        }
+      ],
+      "by_phase": {
+        "ADDRESS": [],
+        "BACKSWING": [],
+        "TOP": [
+          {
+            "phase": "TOP",
+            "severity": "major",
+            "title": "Left Arm Breakdown",
+            "description": "Left arm bent to 89.5\u00b0 (should be straighter)",
+            "fix": "Maintain straighter left arm at top",
+            "feature": "2-LEFT-ARM-ANGLE",
+            "value": 89.49895381681466,
+            "expected": "100\u00b0 to 160\u00b0"
+          }
+        ],
+        "DOWNSWING": [],
+        "IMPACT": [],
+        "FOLLOW_THROUGH": []
+      },
+      "by_severity": {
+        "critical": [],
+        "major": [
+          {
+            "phase": "TOP",
+            "severity": "major",
+            "title": "Left Arm Breakdown",
+            "description": "Left arm bent to 89.5\u00b0 (should be straighter)",
+            "fix": "Maintain straighter left arm at top",
+            "feature": "2-LEFT-ARM-ANGLE",
+            "value": 89.49895381681466,
+            "expected": "100\u00b0 to 160\u00b0"
+          }
+        ],
+        "minor": []
+      },
+      "summary": {
+        "total_faults": 1,
+        "critical_count": 0,
+        "major_count": 1,
+        "minor_count": 0
+      }
+    },
+    "messages": [
+      "\ud83d\udfe0 [TOP] Left Arm Breakdown: Left arm bent to 89.5\u00b0 (should be straighter) \u2192 Maintain straighter left arm at top"
+    ],
+    "critical_faults": []
+  },
+  "performance_prediction": {
+    "BallSpeed": 41.910892486572266,
+    "Distance": 99.7039794921875,
+    "Carry": 88.34048461914062,
+    "confidence": 85.0
+  },
+  "ball_tracking": {
+    "enabled": true,
+    "status": "fallback",
+    "quality": {
+      "status": "error"
+    },
+    "distance_estimation": {
+      "carry_yards": 88.34048461914062,
+      "distance_yards": 99.7039794921875,
+      "confidence": 85.0,
+      "method": "ml_pose_fallback",
+      "notes": "Module 3 disabled or no ball trajectory; using Module 2 performance prediction."
+    },
+    "trajectory_2d": [],
+    "files": {
+      "csv": null,
+      "json": null,
+      "plot": null
+    }
+  },
+  "outputs": {
+    "plot": "output\\tmp23g1z1ig_analysis.png",
+    "annotated_video": "output\\tmp23g1z1ig_annotated.mp4",
+    "ball_plot": null
+  }
+}

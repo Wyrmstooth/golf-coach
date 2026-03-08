@@ -431,6 +431,7 @@ class MLSwingAnalyzer:
                 show_pose=True,
                 slow_motion=0.5,
                 ball_trajectory=ball_trajectory,
+                faults_by_phase=fault_results.get('details', {}).get('by_phase') if fault_results else None,
             )
         elif verbose:
             print("   Skipping video rendering (use skip_video_render=False to enable)")
@@ -519,6 +520,62 @@ class MLSwingAnalyzer:
             )
             ball_tracking_section["files"] = files
 
+        # ---------------------------------------------------------------------
+        # Build per-phase fault summary for easy UI consumption
+        # ---------------------------------------------------------------------
+        phase_fault_summary = {}
+        if fault_results:
+            details = fault_results.get("details") or {}
+            by_phase = details.get("by_phase") or {}
+
+            # Fixed order for 6-phase golf swing
+            phase_order = [
+                "ADDRESS",
+                "BACKSWING",
+                "TOP",
+                "DOWNSWING",
+                "IMPACT",
+                "FOLLOW_THROUGH",
+            ]
+            severity_weights = {"minor": 1, "major": 2, "critical": 3}
+            severity_rank = ["none", "minor", "major", "critical"]
+
+            for phase_name in phase_order:
+                faults = by_phase.get(phase_name) or []
+
+                counts = {"critical": 0, "major": 0, "minor": 0}
+                for fault in faults:
+                    sev = (fault.get("severity") or "").lower()
+                    if sev in counts:
+                        counts[sev] += 1
+
+                # Determine maximum severity present in this phase
+                max_severity = "none"
+                for sev in ("critical", "major", "minor"):
+                    if counts[sev] > 0:
+                        max_severity = sev
+                        break
+
+                # Simple phase score for visualization only (0–100)
+                weighted_sum = sum(
+                    counts[sev] * severity_weights[sev] for sev in counts
+                )
+                # Assume up to ~8 weighted units per phase → scale into 0–100
+                phase_score = 0.0
+                if weighted_sum > 0:
+                    phase_score = float(min(100.0, (weighted_sum / 8.0) * 100.0))
+
+                top_fault_titles = [
+                    f.get("title", "") for f in faults if f.get("title")
+                ][:3]
+
+                phase_fault_summary[phase_name] = {
+                    "max_severity": max_severity,
+                    "counts": counts,
+                    "score": phase_score,
+                    "top_fault_titles": top_fault_titles,
+                }
+
         report = {
             'video': str(video_path),
             'phase_ranges': {k: [int(v[0]), int(v[1])] for k, v in phase_ranges.items()},
@@ -533,6 +590,7 @@ class MLSwingAnalyzer:
                     if '🔴' in msg
                 ] if fault_results else []
             },
+            'phase_fault_summary': convert_to_serializable(phase_fault_summary),
             'performance_prediction': convert_to_serializable(performance_results) if performance_results else None,
             'ball_tracking': convert_to_serializable(ball_tracking_section),
             'outputs': {

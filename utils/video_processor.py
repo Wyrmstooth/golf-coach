@@ -56,6 +56,7 @@ class VideoProcessor:
         slow_motion: float = 0.5,
         max_resolution: int = 1080,
         ball_trajectory: Optional[List[BallTrajectoryPoint]] = None,
+        faults_by_phase: Optional[Dict[str, List[Dict]]] = None,
     ) -> str:
         """
         Create annotated video with phase labels and pose overlay
@@ -128,6 +129,46 @@ class VideoProcessor:
             for pt in ball_trajectory:
                 ball_by_frame[int(pt.frame)] = pt
 
+        # Precompute per-phase fault labels and banner colors (if provided)
+        phase_fault_labels: Dict[str, List[str]] = {}
+        phase_banner_colors: Dict[str, Tuple[int, int, int]] = {}
+        if faults_by_phase:
+            severity_to_color = {
+                "none": (0, 255, 0),       # green
+                "minor": (0, 215, 255),    # yellow/cyan
+                "major": (0, 165, 255),    # orange
+                "critical": (0, 0, 255),   # red
+            }
+            severity_emoji = {
+                "critical": "🔴",
+                "major": "🟠",
+                "minor": "🟡",
+            }
+
+            for phase_name, faults in (faults_by_phase or {}).items():
+                counts = {"critical": 0, "major": 0, "minor": 0}
+                labels: List[str] = []
+                for fault in faults or []:
+                    sev = (fault.get("severity") or "").lower()
+                    if sev in counts:
+                        counts[sev] += 1
+                    title = fault.get("title")
+                    if title:
+                        emoji = severity_emoji.get(sev, "⚠️")
+                        labels.append(f"{emoji} {title}")
+
+                max_severity = "none"
+                for sev in ("critical", "major", "minor"):
+                    if counts[sev] > 0:
+                        max_severity = sev
+                        break
+
+                phase_banner_colors[phase_name] = severity_to_color.get(
+                    max_severity, (0, 255, 0)
+                )
+                # Show at most two fault titles on video overlay
+                phase_fault_labels[phase_name] = labels[:2]
+
         try:
             for frame_idx in tqdm(range(total_frames), desc="Rendering video"):
                 ret, frame = cap.read()
@@ -136,18 +177,35 @@ class VideoProcessor:
                 
                 # Upscale or downscale if needed
                 if scale_factor != 1.0:
-                    frame = cv2.resize(frame, (output_width, output_height), 
-                                     interpolation=cv2.INTER_CUBIC)
-                
+                    frame = cv2.resize(
+                        frame,
+                        (output_width, output_height),
+                        interpolation=cv2.INTER_CUBIC,
+                    )
+
+                # Get current phase for this frame
+                phase = self._get_phase_at_frame(frame_idx, phase_ranges)
+
+                # Expose active faults for this phase to pose overlay (if any)
+                if faults_by_phase:
+                    self._active_phase_faults = faults_by_phase.get(phase, []) or []
+                else:
+                    self._active_phase_faults = []
+
                 # Add pose overlay
                 if show_pose and pose:
                     frame = self._add_pose_overlay(frame, pose)
                 
-                # Get current phase
-                phase = self._get_phase_at_frame(frame_idx, phase_ranges)
-                
-                # Add annotations
-                frame = self._add_annotations(frame, phase, frame_idx, output_width, output_height)
+                # Add annotations (phase label, angles, per-phase faults)
+                frame = self._add_annotations(
+                    frame,
+                    phase,
+                    frame_idx,
+                    output_width,
+                    output_height,
+                    phase_banner_colors=phase_banner_colors,
+                    phase_fault_labels=phase_fault_labels,
+                )
 
                 # Add ball overlay (Module 3)
                 if ball_by_frame:
@@ -181,6 +239,45 @@ class VideoProcessor:
             # Calculate and store angles
             landmarks = extract_landmarks_from_mediapipe(results.pose_landmarks, self.mp_pose)
             self._current_angles = self._calculate_angles(landmarks)
+
+            # Highlight key joints when severe faults are present in this phase
+            active_faults = getattr(self, "_active_phase_faults", []) or []
+            if active_faults:
+                # Map specific fault titles to landmark indices
+                fault_joint_map: Dict[str, List[int]] = {
+                    # DOWNSWING right arm collapse: right shoulder, elbow, wrist
+                    "Right Arm Collapse": [
+                        int(self.mp_pose.PoseLandmark.RIGHT_SHOULDER),
+                        int(self.mp_pose.PoseLandmark.RIGHT_ELBOW),
+                        int(self.mp_pose.PoseLandmark.RIGHT_WRIST),
+                    ],
+                    # ADDRESS excessive forward bend: shoulders and hips (spine proxy)
+                    "Excessive Forward Bend": [
+                        int(self.mp_pose.PoseLandmark.LEFT_SHOULDER),
+                        int(self.mp_pose.PoseLandmark.RIGHT_SHOULDER),
+                        int(self.mp_pose.PoseLandmark.LEFT_HIP),
+                        int(self.mp_pose.PoseLandmark.RIGHT_HIP),
+                    ],
+                }
+
+                h, w, _ = frame.shape
+                highlight_indices: List[int] = []
+                for fault in active_faults:
+                    severity = (fault.get("severity") or "").lower()
+                    if severity not in ("critical", "major"):
+                        continue
+                    title = fault.get("title")
+                    if not title:
+                        continue
+                    indices = fault_joint_map.get(title)
+                    if indices:
+                        highlight_indices.extend(indices)
+
+                for idx in set(highlight_indices):
+                    if 0 <= idx < landmarks.shape[0]:
+                        x = int(landmarks[idx][0] * w)
+                        y = int(landmarks[idx][1] * h)
+                        cv2.circle(frame, (x, y), 7, (0, 0, 255), -1)
         
         return frame
     
@@ -207,20 +304,46 @@ class VideoProcessor:
         phase: str,
         frame_idx: int,
         width: int,
-        height: int
+        height: int,
+        phase_banner_colors: Optional[Dict[str, Tuple[int, int, int]]] = None,
+        phase_fault_labels: Optional[Dict[str, List[str]]] = None,
     ) -> np.ndarray:
-        """Add phase label, angles, and frame counter"""
+        """Add phase label, angles, per-phase fault text, and frame counter"""
         scale = min(width, height) / 160.0
         
         # Phase label
         label_h = int(35 * scale)
         font_s = 0.4 * scale
         thick = max(1, int(2 * scale))
-        
+
+        # Pick border color based on phase severity (if provided)
+        border_color = (0, 255, 0)
+        if phase_banner_colors and phase in phase_banner_colors:
+            border_color = phase_banner_colors[phase]
+
         cv2.rectangle(frame, (3, 3), (width-3, label_h), (0, 0, 0), -1)
-        cv2.rectangle(frame, (3, 3), (width-3, label_h), (0, 255, 0), 2)
+        cv2.rectangle(frame, (3, 3), (width-3, label_h), border_color, 2)
         cv2.putText(frame, phase, (int(5*scale), int(25*scale)),
-                   cv2.FONT_HERSHEY_DUPLEX, font_s, (0, 255, 0), thick)
+                   cv2.FONT_HERSHEY_DUPLEX, font_s, border_color, thick)
+        
+        # Phase-specific faults (short text under the header)
+        if phase_fault_labels:
+            labels = phase_fault_labels.get(phase) or []
+            if labels:
+                fault_y = label_h + int(12 * scale)
+                fault_font = 0.3 * scale
+                fault_thick = max(1, int(1 * scale))
+                for idx, text in enumerate(labels):
+                    y = min(height - int(60 * scale), fault_y + int(14 * scale) * idx)
+                    cv2.putText(
+                        frame,
+                        text,
+                        (int(5 * scale), y),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        fault_font,
+                        (255, 255, 255),
+                        fault_thick,
+                    )
         
         # Angles (if available)
         if hasattr(self, '_current_angles'):
@@ -377,8 +500,16 @@ class VideoProcessor:
                 # Get current phase
                 phase = self._get_phase_at_frame(idx, phase_ranges)
                 
-                # Add annotations
-                frame = self._add_annotations(frame, phase, idx, output_width, output_height)
+                # Add annotations (no per-phase fault overlays for image sequence)
+                frame = self._add_annotations(
+                    frame,
+                    phase,
+                    idx,
+                    output_width,
+                    output_height,
+                    phase_banner_colors=None,
+                    phase_fault_labels=None,
+                )
                 
                 out.write(frame)
         finally:

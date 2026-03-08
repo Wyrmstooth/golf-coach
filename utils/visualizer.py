@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.patches import Patch
 from typing import Dict, List, Tuple, Optional
 from tqdm import tqdm
 import mediapipe as mp
@@ -283,7 +284,7 @@ class SwingVisualizer:
         ax2.plot(frames, dy, label="Vertical (px)", color="tab:orange", linewidth=2)
 
         # Phase spans
-        colors = {
+        phase_colors = {
             "ADDRESS": "gray",
             "BACKSWING": "blue",
             "TOP": "orange",
@@ -292,7 +293,7 @@ class SwingVisualizer:
             "FOLLOW_THROUGH": "purple",
         }
         for phase, (start, end) in phase_ranges.items():
-            color = colors.get(phase, "lightblue")
+            color = phase_colors.get(phase, "lightblue")
             ax.axvspan(start, end, alpha=0.1, color=color)
 
         ax.set_xlabel("Frame Number", fontsize=12)
@@ -305,10 +306,23 @@ class SwingVisualizer:
         )
         ax.grid(True, alpha=0.3)
 
-        # Combined legend
+        # Combined legend (displacement + phase colors)
         lines, labels = ax.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
-        ax.legend(lines + lines2, labels + labels2, loc="upper left", fontsize=9)
+
+        phase_patches = [
+            Patch(facecolor=color, alpha=0.2, label=phase)
+            for phase, color in phase_colors.items()
+            if phase in phase_ranges
+        ]
+        phase_labels = [p.get_label() for p in phase_patches]
+
+        ax.legend(
+            lines + lines2 + phase_patches,
+            labels + labels2 + phase_labels,
+            loc="upper left",
+            fontsize=9,
+        )
 
         plt.tight_layout()
         plt.savefig(output_path, dpi=150, bbox_inches="tight")
