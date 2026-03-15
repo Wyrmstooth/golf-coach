@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-golf-navy text-white font-sans antialiased;
+    min-height: 100vh;
+  }
+
+  :root {
+    color-scheme: dark;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-golf-slate;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-golf-green rounded-full;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/10;
+  }
+  .glass-green {
+    @apply bg-golf-green/10 backdrop-blur-md border border-golf-green/30;
+  }
+  .text-gradient {
+    @apply bg-gradient-to-r from-golf-green via-golf-light to-golf-gold bg-clip-text text-transparent;
+  }
+  .glow-green {
+    box-shadow: 0 0 24px rgba(22, 163, 74, 0.5);
+  }
+  .glow-gold {
+    box-shadow: 0 0 24px rgba(202, 138, 4, 0.5);
+  }
+  .animate-gradient-bg {
+    background-size: 300% 300%;
+    animation: gradient 8s ease infinite;
+  }
+}
