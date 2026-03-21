@@ -1,176 +1,199 @@
-## GolfCoach-2 – Windows Setup Guide
+# GolfCoach AI — Windows Setup Guide
 
-This document explains how to install dependencies and run the `golfCoach-2` project on **Windows** using a stable Python/MediaPipe combination.
+Step-by-step instructions for running the **React + FastAPI** GolfCoach AI on Windows 10/11.
 
 ---
 
-## 1. Prerequisites
+## Prerequisites
 
-- **OS**: Windows 10/11 (64‑bit)
-- **Python**: Installed via **Anaconda or Miniconda**
-- **Conda**: Available in your terminal (`conda --version` works)
-- (Optional) **GPU**: NVIDIA GPU with CUDA for faster Torch/YOLO; CPU is still supported.
+| Tool | Download |
+|------|---------|
+| Miniconda or Anaconda | https://docs.conda.io/en/latest/miniconda.html |
+| Node.js 18+ | https://nodejs.org/en/download |
+| Git | https://git-scm.com/download/win |
 
-Project root (adjust if different on your machine):
+---
 
-```bash
-C:\Users\munib\Desktop\fyp_files\fyp2\golfCoach-2
+## Step 1 — Clone the repository
+
+Open **PowerShell** or **Anaconda Prompt**:
+
+```powershell
+git clone https://github.com/zainulabidin776/golf-dashboard.git
+cd golf-dashboard
 ```
 
 ---
 
-## 2. Create the Conda environment
+## Step 2 — Create the Python environment
 
-Use an **Anaconda Prompt** or any terminal where `conda` is available:
-
-```bash
-# 1) Go to the project directory
-cd "C:\Users\munib\Desktop\fyp_files\fyp2\golfCoach-2"
-
-# 2) Create environment with Python 3.10 (one‑time)
+```powershell
 conda create -n golfpose python=3.10 -y
-
-# 3) Activate the environment
 conda activate golfpose
 ```
 
-Why: the project relies on MediaPipe’s classic `mp.solutions` API, which is present in `mediapipe==0.10.21` and works reliably with Python 3.10 on Windows.
-
 ---
 
-## 3. Install Python dependencies
+## Step 3 — Install Python dependencies
 
-With the `golfpose` environment **activated** and your working directory set to `golfCoach-2`:
-
-```bash
-cd "C:\Users\munib\Desktop\fyp_files\fyp2\golfCoach-2"
-
-# Install all project requirements
+```powershell
 pip install -r requirements.txt
 ```
 
-Key entries from `requirements.txt`:
+**Verify key packages:**
 
-- `mediapipe==0.10.21` (pinned; provides `mp.solutions`)
-- `opencv-python>=4.8.0`
-- `numpy>=1.24.0`
-- `scipy>=1.10.0`
-- `matplotlib>=3.7.0`
-- `tqdm>=4.65.0`
-- `streamlit>=1.40.0`
-- `pillow>=10.0.0`
-- `pandas>=2.0.0`
-- `scikit-learn>=1.3.0`
-- `pyyaml>=6.0`
-- `streamlit-webrtc>=0.47.0`
-- `ultralytics>=8.0.0` (pulls in `torch` and `torchvision`)
-
-### Verify MediaPipe is correctly installed
-
-Still inside the `golfpose` environment:
-
-```bash
-python -c "import mediapipe as mp; print(mp.__version__); print(hasattr(mp, 'solutions'))"
+```powershell
+python -c "import mediapipe as mp; print('MediaPipe:', mp.__version__)"
+python -c "import fastapi; print('FastAPI OK')"
+python -c "import torch; print('PyTorch:', torch.__version__)"
 ```
 
 Expected output:
-
-```text
-0.10.21
-True
 ```
-
-If `hasattr(..., 'solutions')` prints `False`, you are not using the right environment.
+MediaPipe: 0.10.21
+FastAPI OK
+PyTorch: 2.x.x
+```
 
 ---
 
-## 4. Run the Streamlit web app
+## Step 4 — Install frontend dependencies
 
-With `golfpose` **activated** and from the project directory:
-
-```bash
-cd "C:\Users\munib\Desktop\fyp_files\fyp2\golfCoach-2"
-streamlit run golf_coach_app.py
+```powershell
+cd frontend
+npm install
+cd ..
 ```
-
-Then open the app in your browser:
-
-- `http://localhost:8501`
-
-This launches the Golf Coach UI with:
-
-- Mode selector (Video Analysis, Live ADDRESS Pose Check, Live Swing Analysis)
-- Video upload/sample video picker
-- “Analyze Swing” button and detailed results.
-
-To stop the app, press `Ctrl + C` in the terminal where Streamlit is running.
 
 ---
 
-## 5. Command‑line video analysis (optional)
+## Step 5 — Start the application
 
-You can also run offline analysis from the command line:
+### Option A: One-click launcher (recommended)
 
-```bash
+```powershell
+powershell -ExecutionPolicy Bypass -File start_app.ps1
+```
+
+This starts both the backend (port 8000) and frontend (port 5173) automatically.
+
+### Option B: Manual (two terminals)
+
+**Terminal 1 — Backend:**
+
+```powershell
 conda activate golfpose
-cd "C:\Users\munib\Desktop\fyp_files\fyp2\golfCoach-2"
-
-# Full analysis with annotated video output
-python analyze_video.py --video path\to\your_swing.mp4
-
-# Faster mode (no annotated video rendering)
-python analyze_video.py --video path\to\your_swing.mp4 --fast
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 
-Results are written under the `output` directory:
+You should see:
+```
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000
+```
 
-- `VIDEO_report.json` – detailed metrics and fault analysis
-- `VIDEO_analysis.png` – trajectory plot
-- `VIDEO_annotated.mp4` – annotated swing video (if not using `--fast`)
+**Terminal 2 — Frontend:**
 
----
+```powershell
+cd frontend
+npm run dev
+```
 
-## 6. Common issues on Windows
-
-- **Error**: `module 'mediapipe' has no attribute 'solutions'`
-  - **Cause**: Streamlit is running with the wrong Python (e.g., system Python 3.13 where MediaPipe is in “tasks”–only mode).
-  - **Fix**:
-    1. Close any existing Streamlit terminal.
-    2. In a new terminal:
-       ```bash
-       conda activate golfpose
-       cd "C:\Users\munib\Desktop\fyp_files\fyp2\golfCoach-2"
-       streamlit run golf_coach_app.py
-       ```
-    3. Re‑run the MediaPipe check from section 3.
-
-- **Missing package errors** (e.g., `ModuleNotFoundError`)
-  - Ensure the `golfpose` environment is active and re‑run:
-    ```bash
-    pip install -r requirements.txt
-    ```
+You should see:
+```
+VITE v8.x.x  ready in xxxx ms
+➜  Local:   http://localhost:5173/
+```
 
 ---
 
-## 7. Quick reference
+## Step 6 — Open the app
 
-Most common commands you will use:
+Open your browser at **http://localhost:5173**
 
-```bash
-# Create env (one time)
-conda create -n golfpose python=3.10 -y
+---
 
-# Each new session
+## Common Issues on Windows
+
+### ❌ `OSError: [WinError 6] The handle is invalid` during analysis
+**Cause:** tqdm writing to an invalid stderr handle inside uvicorn's thread.  
+**Status:** Already fixed — `_safe_tqdm()` in `video_processor.py` handles this.
+
+### ❌ Analysis stuck at 88% (annotated video generation hangs)
+**Cause:** `avc1` (libopenh264) selected as codec but has wrong library version, causing `out.release()` to deadlock.  
+**Status:** Already fixed — `mp4v` codec is now tried first in `video_processor.py`.
+
+### ❌ `module 'mediapipe' has no attribute 'solutions'`
+The wrong Python environment is active.
+```powershell
 conda activate golfpose
-cd "C:\Users\munib\Desktop\fyp_files\fyp2\golfCoach-2"
+python -c "import mediapipe as mp; print(hasattr(mp, 'solutions'))"
+# Must print: True
+```
 
-# Install deps (after cloning or updating)
+### ❌ `ModuleNotFoundError` on backend start
+```powershell
+conda activate golfpose
 pip install -r requirements.txt
-
-# Run web app
-streamlit run golf_coach_app.py
-
-# Optional: CLI analysis
-python analyze_video.py --video path\to\your_swing.mp4 --fast
 ```
 
+### ❌ Backend startup fails — sklearn/cv2/mediapipe not found
+These ML packages are **only loaded at analysis time**, not at startup. The startup script only checks `fastapi` and `uvicorn`. If you see this error, make sure you're in the `golfpose` conda environment.
+
+### ❌ Ball tracking shows "Not Available"
+Place the trained `ball_detector.pt` file in the `models/` directory and set `module3.enabled: true` in `config.yaml`.
+
+### ❌ Frontend build errors
+```powershell
+cd frontend
+npm install
+npm run build
+```
+If TypeScript errors appear, ensure Node.js is 18+:
+```powershell
+node --version   # Should be v18.x or higher
+```
+
+### ❌ Port already in use
+```powershell
+# Kill process on port 8000
+netstat -ano | findstr :8000
+taskkill /PID <PID> /F
+
+# Kill process on port 5173
+netstat -ano | findstr :5173
+taskkill /PID <PID> /F
+```
+
+---
+
+## Quick Reference
+
+```powershell
+# One-time setup
+conda create -n golfpose python=3.10 -y
+conda activate golfpose
+pip install -r requirements.txt
+cd frontend && npm install && cd ..
+
+# Every session
+conda activate golfpose
+powershell -ExecutionPolicy Bypass -File start_app.ps1
+# App at http://localhost:5173
+```
+
+---
+
+## Environment Details
+
+| Component | Version |
+|-----------|---------|
+| Python | 3.10 (via conda `golfpose` env) |
+| mediapipe | 0.10.21 (pinned — provides `mp.solutions`) |
+| torch | 2.0+ |
+| ultralytics | 8.0+ (YOLOv8 for ball detection) |
+| fastapi | 0.115+ |
+| uvicorn | latest |
+| Node.js | 18+ |
+| React | 19 |
+| Vite | 8.x |
