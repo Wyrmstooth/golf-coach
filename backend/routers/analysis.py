@@ -49,11 +49,16 @@ def _run_analysis(job_id: str, video_path: str, output_dir: str) -> None:
         analyzer = MLSwingAnalyzer()
         job_store.update(job_id, progress=20)
 
+        def _on_progress(pct: int) -> None:
+            """Relay granular progress from analyze_video() into the job store."""
+            job_store.update(job_id, progress=pct)
+
         report = analyzer.analyze_video(
             video_path=video_path,
             output_dir=output_dir,
             verbose=False,
             skip_video_render=False,
+            progress_callback=_on_progress,
         )
         job_store.update(
             job_id,

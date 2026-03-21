@@ -3,12 +3,38 @@ Video processing utilities for golf swing analysis
 """
 
 import cv2
+import io
+import sys
 import numpy as np
 import mediapipe as mp
 import subprocess
 from pathlib import Path
 from typing import Tuple, Optional, Dict, List
 from tqdm import tqdm
+
+
+def _safe_tqdm(*args, **kwargs):
+    """
+    tqdm wrapper that gracefully handles Windows OSError WinError 6.
+
+    When uvicorn runs analysis in a background thread on Windows, sys.stderr
+    is not connected to a real console handle and raises:
+        OSError: [WinError 6] The handle is invalid
+    We redirect tqdm to stdout and fall back to a null sink (io.StringIO)
+    so the video-rendering loop always completes without crashing.
+    """
+    # Try stdout first; if it's also broken, use a null sink
+    try:
+        if sys.stdout and hasattr(sys.stdout, 'write'):
+            sys.stdout.write('')  # probe for validity
+            kwargs.setdefault('file', sys.stdout)
+        else:
+            kwargs['file'] = io.StringIO()
+    except OSError:
+        kwargs['file'] = io.StringIO()
+    # Also disable the dynamic terminal-width detection that can trigger the error
+    kwargs.setdefault('dynamic_ncols', False)
+    return tqdm(*args, **kwargs)
 from utils.biomechanics import calculate_joint_angle, extract_landmarks_from_mediapipe
 from utils.ball_tracker import BallTrajectoryPoint
 
@@ -102,13 +128,16 @@ class VideoProcessor:
         output_fps = max(15, fps * slow_motion)
         print(f"   Output FPS: {output_fps:.1f}")
         
-        # Try H.264 codec first, fallback to mp4v if not available
+        # Try mp4v first (built-in OpenCV codec, no external library needed).
+        # avc1 (H.264/libopenh264) is intentionally after mp4v because on Windows
+        # an incorrect libopenh264 version can make out.release() deadlock even when
+        # out.isOpened() returned True.
         out = None
-        for codec in ['avc1', 'mp4v', 'XVID', 'MJPG']:
+        for codec in ['mp4v', 'avc1', 'XVID', 'MJPG']:
             fourcc = cv2.VideoWriter_fourcc(*codec)
             out = cv2.VideoWriter(output_path, fourcc, output_fps, (output_width, output_height))
             if out.isOpened():
-                if codec != 'mp4v' and codec != 'avc1':
+                if codec not in ('mp4v', 'avc1'):
                     print(f"   Using {codec} codec")
                 break
             out.release()
@@ -170,7 +199,7 @@ class VideoProcessor:
                 phase_fault_labels[phase_name] = labels[:2]
 
         try:
-            for frame_idx in tqdm(range(total_frames), desc="Rendering video"):
+            for frame_idx in _safe_tqdm(range(total_frames), desc="Rendering video"):
                 ret, frame = cap.read()
                 if not ret:
                     break
@@ -483,7 +512,7 @@ class VideoProcessor:
         pose = self.mp_pose.Pose(static_image_mode=True, model_complexity=2) if show_pose else None
         
         try:
-            for idx, img_file in enumerate(tqdm(image_files, desc="Rendering video")):
+            for idx, img_file in enumerate(_safe_tqdm(image_files, desc="Rendering video")):
                 frame = cv2.imread(str(img_file))
                 if frame is None:
                     continue

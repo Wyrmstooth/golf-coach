@@ -33,7 +33,31 @@ const FEATURES = [
   },
 ];
 
-// Animated SVG golfer silhouette
+/* Animated golf ball with realistic dimple pattern */
+function HeroGolfBall({ delay = 0 }: { delay?: number }) {
+  return (
+    <motion.div
+      className="golf-ball"
+      style={{ width: 40, height: 40 }}
+      initial={{ opacity: 0, scale: 0 }}
+      animate={{
+        opacity: [0, 0.6, 0.3],
+        scale: [0, 1, 0.8],
+        y: [0, -40, 20],
+        x: [0, 20, -10],
+      }}
+      transition={{
+        duration: 4,
+        delay,
+        repeat: Infinity,
+        repeatDelay: 2,
+        ease: "easeInOut",
+      }}
+    />
+  );
+}
+
+/* Animated SVG golfer silhouette */
 function GolferSVG() {
   return (
     <motion.svg
@@ -43,7 +67,6 @@ function GolferSVG() {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.8, ease: "easeOut" }}
     >
-      {/* Glow effect */}
       <defs>
         <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="#16a34a" stopOpacity="0.4" />
@@ -56,37 +79,29 @@ function GolferSVG() {
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+        <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#16a34a" />
+          <stop offset="100%" stopColor="#0d7a3a" />
+        </linearGradient>
       </defs>
       <ellipse cx="100" cy="310" rx="60" ry="8" fill="url(#glowGrad)" />
 
-      {/* Body */}
       <motion.g
         filter="url(#glow)"
         animate={{ rotate: [-8, 8] }}
         transition={{ duration: 2, ease: "easeInOut", repeat: Infinity, repeatType: "reverse" }}
         style={{ transformOrigin: "100px 200px" }}
       >
-        {/* Head */}
-        <circle cx="100" cy="40" r="22" fill="#16a34a" />
-        {/* Cap brim */}
+        <circle cx="100" cy="40" r="22" fill="url(#bodyGrad)" />
         <rect x="78" y="22" width="44" height="10" rx="5" fill="#052e16" />
-        {/* Torso */}
-        <path d="M80 60 Q100 55 120 60 L125 160 L75 160 Z" fill="#16a34a" />
-        {/* Left arm / club swing */}
+        <path d="M80 60 Q100 55 120 60 L125 160 L75 160 Z" fill="url(#bodyGrad)" />
         <line x1="80" y1="80" x2="30" y2="120" stroke="#16a34a" strokeWidth="10" strokeLinecap="round" />
-        {/* Club shaft */}
         <line x1="30" y1="120" x2="10" y2="200" stroke="#ca8a04" strokeWidth="4" strokeLinecap="round" />
-        {/* Club head */}
         <rect x="0" y="196" width="20" height="14" rx="4" fill="#ca8a04" />
-        {/* Right arm */}
         <line x1="120" y1="80" x2="150" y2="110" stroke="#16a34a" strokeWidth="10" strokeLinecap="round" />
-        {/* Left leg */}
         <line x1="88" y1="160" x2="80" y2="260" stroke="#052e16" strokeWidth="14" strokeLinecap="round" />
-        {/* Right leg */}
         <line x1="112" y1="160" x2="120" y2="260" stroke="#052e16" strokeWidth="14" strokeLinecap="round" />
-        {/* Left foot */}
         <ellipse cx="78" cy="264" rx="16" ry="6" fill="#052e16" />
-        {/* Right foot */}
         <ellipse cx="122" cy="264" rx="16" ry="6" fill="#052e16" />
       </motion.g>
 
@@ -106,12 +121,44 @@ function GolferSVG() {
       <motion.circle
         cx="10"
         cy="200"
-        r="5"
-        fill="#ca8a04"
+        r="6"
+        fill="#f8f8f0"
+        stroke="#d4d4c8"
+        strokeWidth="0.5"
         animate={{ cx: [10, 190], cy: [200, 60] }}
         transition={{ duration: 2, ease: "easeOut", repeat: Infinity, repeatDelay: 1 }}
       />
     </motion.svg>
+  );
+}
+
+/* Grass wave footer for hero */
+function GrassWave() {
+  return (
+    <div className="absolute bottom-0 left-0 right-0 overflow-hidden pointer-events-none">
+      <motion.svg
+        viewBox="0 0 1440 80"
+        className="w-full h-16"
+        preserveAspectRatio="none"
+        animate={{ y: [0, -2, 0] }}
+        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <path
+          d="M0 40 Q360 10 720 40 Q1080 70 1440 40 L1440 80 L0 80 Z"
+          fill="#052e16"
+          opacity="0.4"
+        />
+        <path
+          d="M0 50 Q360 25 720 50 Q1080 75 1440 50 L1440 80 L0 80 Z"
+          fill="#052e16"
+          opacity="0.6"
+        />
+        <path
+          d="M0 60 Q360 40 720 60 Q1080 80 1440 60 L1440 80 L0 80 Z"
+          fill="#0f172a"
+        />
+      </motion.svg>
+    </div>
   );
 }
 
@@ -143,9 +190,40 @@ export default function LandingPage() {
             backgroundSize: "40px 40px",
           }}
         />
-        {/* Green glow orb */}
+        {/* Golf course fairway gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-golf-dark/5 to-golf-dark/20 animate-fairway-pulse" />
+
+        {/* Glowing orbs */}
         <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-golf-green/10 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-golf-gold/10 rounded-full blur-3xl" />
+
+        {/* Floating golf ball particles */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {[
+            { x: "10%", y: "20%", delay: 0 },
+            { x: "80%", y: "15%", delay: 1.5 },
+            { x: "65%", y: "70%", delay: 3 },
+            { x: "25%", y: "75%", delay: 4.5 },
+          ].map((p, i) => (
+            <motion.div
+              key={i}
+              className="absolute"
+              style={{ left: p.x, top: p.y }}
+              animate={{
+                y: [0, -15, 0],
+                opacity: [0.1, 0.25, 0.1],
+              }}
+              transition={{
+                duration: 5,
+                delay: p.delay,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            >
+              <div className="golf-ball" style={{ width: 12 + i * 4, height: 12 + i * 4 }} />
+            </motion.div>
+          ))}
+        </div>
 
         <div className="relative max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
           {/* Left: Text */}
@@ -248,9 +326,12 @@ export default function LandingPage() {
           </motion.div>
         </div>
 
+        {/* Grass wave footer */}
+        <GrassWave />
+
         {/* Scroll indicator */}
         <motion.div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/30 text-xs"
+          className="absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/30 text-xs"
           animate={{ y: [0, 6] }}
           transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse" }}
         >

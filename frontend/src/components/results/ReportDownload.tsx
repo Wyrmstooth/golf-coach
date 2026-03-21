@@ -8,7 +8,6 @@ import {
   Text,
   View,
   StyleSheet,
-  Image as PDFImage,
 } from "@react-pdf/renderer";
 import type { AnalysisReport } from "../../api/analysis";
 
@@ -38,13 +37,14 @@ const styles = StyleSheet.create({
     borderBottomColor: "#1e293b",
     paddingBottom: 4,
   },
-  row: { flexDirection: "row", marginBottom: 6 },
+  row: { flexDirection: "row", marginBottom: 4 },
   cell: { flex: 1, fontSize: 9, color: "#cbd5e1", padding: 6, backgroundColor: "#1e293b", marginRight: 4 },
   cellHeader: { flex: 1, fontSize: 9, fontFamily: "Helvetica-Bold", color: "#16a34a", padding: 6, backgroundColor: "#052e16", marginRight: 4 },
   faultBox: { backgroundColor: "#1e293b", padding: 8, marginBottom: 6, borderRadius: 4 },
   faultTitle: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#ffffff", marginBottom: 2 },
   faultDesc: { fontSize: 8, color: "#94a3b8", marginBottom: 2 },
   faultFix: { fontSize: 8, color: "#16a34a" },
+  faultMeasurement: { fontSize: 8, color: "#cbd5e1", marginBottom: 2 },
   critical: { color: "#ef4444" },
   major:    { color: "#f97316" },
   minor:    { color: "#eab308" },
@@ -54,7 +54,24 @@ const styles = StyleSheet.create({
   metric: { flex: 1, backgroundColor: "#1e293b", padding: 10, marginRight: 4, borderRadius: 4, alignItems: "center" },
   metricValue: { fontSize: 20, fontFamily: "Helvetica-Bold", color: "#ca8a04" },
   metricLabel: { fontSize: 8, color: "#94a3b8", marginTop: 2 },
+  footer: { position: "absolute", bottom: 20, left: 36, right: 36, flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#1e293b", paddingTop: 8 },
+  footerText: { fontSize: 7, color: "#475569" },
+  phaseHeader: { fontSize: 12, fontFamily: "Helvetica-Bold", color: "#ffffff", backgroundColor: "#052e16", padding: 8, marginTop: 12, marginBottom: 4, borderRadius: 4 },
+  phaseScore: { fontSize: 9, color: "#16a34a", fontFamily: "Helvetica-Bold" },
+  noFaults: { fontSize: 9, color: "#16a34a", padding: 8 },
+  warningBox: { backgroundColor: "#f9731620", padding: 8, borderRadius: 4, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: "#f97316" },
+  successBox: { backgroundColor: "#16a34a15", padding: 8, borderRadius: 4, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: "#16a34a" },
 });
+
+const PHASE_ORDER = ["ADDRESS", "BACKSWING", "TOP", "DOWNSWING", "IMPACT", "FOLLOW_THROUGH"];
+const PHASE_LABELS: Record<string, string> = {
+  ADDRESS: "Address",
+  BACKSWING: "Backswing",
+  TOP: "Top of Swing",
+  DOWNSWING: "Downswing",
+  IMPACT: "Impact",
+  FOLLOW_THROUGH: "Follow Through",
+};
 
 // ---------- PDF Document ----------
 function GolfReport({ report, analysisDate }: { report: AnalysisReport; analysisDate: string }) {
@@ -65,12 +82,14 @@ function GolfReport({ report, analysisDate }: { report: AnalysisReport; analysis
   const ballDist = report.ball_tracking?.distance_estimation;
   const phases = Object.entries(report.phase_ranges);
   const summary = report.phase_fault_summary;
+  const byPhase = report.fault_analysis.fault_details?.by_phase ?? {};
 
   const videoName = report.video.split(/[\\/]/).pop() ?? "video.mp4";
+  const totalFaults = report.fault_analysis.fault_details?.summary?.total_faults ?? 0;
 
   return (
     <Document>
-      {/* Page 1 – Cover */}
+      {/* Page 1 – Cover + Summary */}
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <Text style={styles.title}>GolfCoach AI — Swing Analysis Report</Text>
@@ -84,20 +103,25 @@ function GolfReport({ report, analysisDate }: { report: AnalysisReport; analysis
           <Text style={{ fontSize: 14, color: "#16a34a", marginTop: 4, fontFamily: "Helvetica-Bold" }}>{quality}</Text>
         </View>
 
-        {/* Summary table */}
+        {/* Fault summary table */}
         <Text style={styles.sectionTitle}>Fault Summary</Text>
         <View style={styles.row}>
           <Text style={styles.cellHeader}>Severity</Text>
           <Text style={styles.cellHeader}>Count</Text>
+          <Text style={styles.cellHeader}>Percentage</Text>
         </View>
-        {(["critical", "major", "minor"] as const).map((sev) => (
-          <View style={styles.row} key={sev}>
-            <Text style={[styles.cell, styles[sev]]}>{sev.toUpperCase()}</Text>
-            <Text style={styles.cell}>{report.fault_analysis.fault_details?.summary?.[`${sev}_count`] ?? 0}</Text>
-          </View>
-        ))}
+        {(["critical", "major", "minor"] as const).map((sev) => {
+          const count = report.fault_analysis.fault_details?.summary?.[`${sev}_count`] ?? 0;
+          return (
+            <View style={styles.row} key={sev}>
+              <Text style={[styles.cell, styles[sev]]}>{sev.toUpperCase()}</Text>
+              <Text style={styles.cell}>{count}</Text>
+              <Text style={styles.cell}>{totalFaults > 0 ? ((count / totalFaults) * 100).toFixed(0) : 0}%</Text>
+            </View>
+          );
+        })}
 
-        {/* Performance */}
+        {/* Performance metrics */}
         <Text style={styles.sectionTitle}>Performance Prediction</Text>
         <View style={styles.row}>
           <View style={styles.metric}>
@@ -113,16 +137,22 @@ function GolfReport({ report, analysisDate }: { report: AnalysisReport; analysis
             <Text style={styles.metricLabel}>Carry (yds)</Text>
           </View>
         </View>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>GolfCoach AI — Automated Swing Analysis Report</Text>
+          <Text style={styles.footerText}>Page 1 of 4</Text>
+        </View>
       </Page>
 
       {/* Page 2 – Phase Breakdown */}
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <Text style={styles.title}>Phase Breakdown</Text>
-          <Text style={styles.subtitle}>{videoName}</Text>
+          <Text style={styles.subtitle}>{videoName} · {analysisDate}</Text>
         </View>
         <View style={styles.row}>
-          {(["Phase", "Frames", "Max Severity", "Total Faults", "Top Fault"] as const).map((h) => (
+          {(["Phase", "Frames", "Severity", "Faults", "Score", "Top Fault"] as const).map((h) => (
             <Text key={h} style={styles.cellHeader}>{h}</Text>
           ))}
         </View>
@@ -131,53 +161,111 @@ function GolfReport({ report, analysisDate }: { report: AnalysisReport; analysis
           const total = (s?.counts.critical ?? 0) + (s?.counts.major ?? 0) + (s?.counts.minor ?? 0);
           return (
             <View style={styles.row} key={phase}>
-              <Text style={styles.cell}>{phase.replace("_", " ")}</Text>
+              <Text style={styles.cell}>{PHASE_LABELS[phase] ?? phase.replace("_", " ")}</Text>
               <Text style={styles.cell}>{start}–{end}</Text>
               <Text style={[styles.cell, styles[(s?.max_severity as "critical" | "major" | "minor") ?? "minor"] ?? {}]}>{s?.max_severity ?? "none"}</Text>
               <Text style={styles.cell}>{total}</Text>
+              <Text style={styles.cell}>{s?.score?.toFixed(0) ?? "—"}/100</Text>
               <Text style={styles.cell}>{s?.top_fault_titles?.[0] ?? "—"}</Text>
             </View>
           );
         })}
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>GolfCoach AI — Automated Swing Analysis Report</Text>
+          <Text style={styles.footerText}>Page 2 of 4</Text>
+        </View>
       </Page>
 
-      {/* Page 3 – Fault Details */}
+      {/* Page 3 – Per-Phase Fault Details */}
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.title}>Fault Details</Text>
-          <Text style={styles.subtitle}>All detected swing faults with corrective guidance</Text>
+          <Text style={styles.title}>Detailed Fault Analysis by Phase</Text>
+          <Text style={styles.subtitle}>All detected faults grouped by swing phase with corrective guidance</Text>
         </View>
-        {faults.length === 0 ? (
-          <Text style={{ color: "#16a34a", fontSize: 14, marginTop: 20 }}>No faults detected — excellent swing!</Text>
-        ) : (
-          faults.map((f, i) => (
-            <View style={styles.faultBox} key={i}>
-              <Text style={[styles.faultTitle, styles[(f.severity as "critical" | "major" | "minor")] ?? {}]}>
-                [{f.severity.toUpperCase()}] {f.title} — {f.phase.replace("_", " ")}
-              </Text>
-              <Text style={styles.faultDesc}>{f.description} (Measured: {f.value.toFixed(1)}°, Expected: {f.expected})</Text>
-              <Text style={styles.faultFix}>Fix: {f.fix}</Text>
+
+        {PHASE_ORDER.map((phase) => {
+          const phaseFaults = byPhase[phase] ?? [];
+          const phaseLabel = PHASE_LABELS[phase] ?? phase.replace("_", " ");
+          const phaseSum = summary[phase];
+          const phaseScore = phaseSum?.score;
+
+          return (
+            <View key={phase} wrap={false}>
+              <View style={styles.phaseHeader}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text>{phaseLabel}</Text>
+                  {phaseScore !== undefined && (
+                    <Text style={styles.phaseScore}>Score: {phaseScore.toFixed(0)}/100</Text>
+                  )}
+                </View>
+              </View>
+
+              {phaseFaults.length === 0 ? (
+                <View style={styles.successBox}>
+                  <Text style={styles.noFaults}>✓ No faults detected in this phase</Text>
+                </View>
+              ) : (
+                phaseFaults.map((f, i) => (
+                  <View style={styles.faultBox} key={i}>
+                    <Text style={[styles.faultTitle, styles[(f.severity as "critical" | "major" | "minor")] ?? {}]}>
+                      [{f.severity.toUpperCase()}] {f.title}
+                    </Text>
+                    <Text style={styles.faultDesc}>{f.description}</Text>
+                    <Text style={styles.faultMeasurement}>
+                      Measured: {f.value.toFixed(1)}° | Expected: {f.expected}
+                    </Text>
+                    <Text style={styles.faultFix}>Fix: {f.fix}</Text>
+                  </View>
+                ))
+              )}
             </View>
-          ))
-        )}
+          );
+        })}
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>GolfCoach AI — Automated Swing Analysis Report</Text>
+          <Text style={styles.footerText}>Page 3 of 4</Text>
+        </View>
       </Page>
 
-      {/* Page 4 – Ball Tracking */}
+      {/* Page 4 – Ball Tracking & Distance */}
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.title}>Ball Tracking & Distance</Text>
-          <Text style={styles.subtitle}>Module 3 — Vision-based or ML-predicted distance</Text>
+          <Text style={styles.title}>Ball Tracking & Distance Estimation</Text>
+          <Text style={styles.subtitle}>Module 3 — Vision-based or ML-predicted distance analysis</Text>
         </View>
+
+        {/* Tracking status */}
+        {report.ball_tracking?.enabled ? (
+          <View style={styles.successBox}>
+            <Text style={{ fontSize: 10, color: "#16a34a", fontFamily: "Helvetica-Bold" }}>
+              ✓ Ball tracking was active for this analysis
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.warningBox}>
+            <Text style={{ fontSize: 10, color: "#f97316", fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
+              ⚠ Ball tracking was not available
+            </Text>
+            <Text style={{ fontSize: 8, color: "#94a3b8" }}>
+              Distance estimation used ML pose-based prediction as fallback.
+            </Text>
+          </View>
+        )}
+
         <View style={styles.row}>
           <Text style={styles.cellHeader}>Metric</Text>
           <Text style={styles.cellHeader}>Value</Text>
         </View>
         {[
           ["Tracking Status", report.ball_tracking?.status ?? "—"],
+          ["Tracking Enabled", report.ball_tracking?.enabled ? "Yes" : "No"],
           ["Method", ballDist?.method ?? "—"],
           ["Confidence", ballDist ? `${ballDist.confidence.toFixed(0)}%` : "—"],
           ["Carry Distance", ballDist ? `${ballDist.carry_yards.toFixed(1)} yds` : "—"],
           ["Total Distance", ballDist ? `${ballDist.distance_yards.toFixed(1)} yds` : "—"],
+          ["ML Ball Speed", perf ? `${perf.BallSpeed.toFixed(0)} mph` : "—"],
           ["Trajectory Points", String(report.ball_tracking?.trajectory_2d?.length ?? 0)],
         ].map(([k, v]) => (
           <View style={styles.row} key={k}>
@@ -185,17 +273,30 @@ function GolfReport({ report, analysisDate }: { report: AnalysisReport; analysis
             <Text style={styles.cell}>{v}</Text>
           </View>
         ))}
+
+        {/* Notes */}
+        {ballDist?.notes && (
+          <View style={{ marginTop: 12 }}>
+            <Text style={styles.sectionTitle}>Notes</Text>
+            <Text style={{ fontSize: 9, color: "#94a3b8" }}>{ballDist.notes}</Text>
+          </View>
+        )}
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>GolfCoach AI — Automated Swing Analysis Report</Text>
+          <Text style={styles.footerText}>Page 4 of 4</Text>
+        </View>
       </Page>
     </Document>
   );
 }
 
 // ---------- Component ----------
-interface Props {
+interface Props2 {
   report: AnalysisReport;
 }
 
-export default function ReportDownload({ report }: Props) {
+export default function ReportDownload({ report }: Props2) {
   const [generating, setGenerating] = useState(false);
 
   const handleDownload = async () => {

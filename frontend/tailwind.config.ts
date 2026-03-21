@@ -12,6 +12,8 @@ const config: Config = {
           light:  "#bbf7d0",
           navy:   "#0f172a",
           slate:  "#1e293b",
+          turf:   "#0d4a25",
+          cream:  "#f8f8f0",
         },
       },
       fontFamily: {
@@ -19,11 +21,19 @@ const config: Config = {
         display: ["'DM Sans'", "Inter", "system-ui", "sans-serif"],
       },
       animation: {
-        "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "swing":      "swing 2s ease-in-out infinite alternate",
-        "float":      "float 4s ease-in-out infinite",
-        "gradient":   "gradient 8s ease infinite",
-        "spin-slow":  "spin 8s linear infinite",
+        "pulse-slow":   "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "swing":        "swing 2s ease-in-out infinite alternate",
+        "float":        "float 4s ease-in-out infinite",
+        "gradient":     "gradient 8s ease infinite",
+        "spin-slow":    "spin 8s linear infinite",
+        "golf-bounce":  "golf-bounce 1s ease-in-out infinite",
+        "golf-spin":    "golf-spin 2s linear infinite",
+        "ball-shadow":  "ball-shadow 1s ease-in-out infinite",
+        "ball-roll":    "ball-roll 2s linear infinite",
+        "tee-wobble":   "tee-wobble 2s ease-in-out infinite",
+        "grass-wave":   "grass-wave 3s ease-in-out infinite",
+        "fairway-pulse":"fairway-pulse 4s ease-in-out infinite",
+        "float-particle":"float-particle 6s ease-in-out infinite",
       },
       keyframes: {
         swing: {
@@ -45,6 +55,7 @@ const config: Config = {
       boxShadow: {
         glow:        "0 0 20px rgba(22, 163, 74, 0.4)",
         "glow-gold": "0 0 20px rgba(202, 138, 4, 0.4)",
+        "glow-lg":   "0 0 40px rgba(22, 163, 74, 0.5)",
       },
     },
   },

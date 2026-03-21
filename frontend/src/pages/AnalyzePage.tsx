@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RotateCcw, Image, Target } from "lucide-react";
+import { RotateCcw, Image, Target, AlertCircle, RefreshCw } from "lucide-react";
 
 import PageWrapper from "../components/layout/PageWrapper";
 import VideoDropzone from "../components/upload/VideoDropzone";
@@ -17,13 +17,14 @@ import { uploadVideo } from "../api/analysis";
 import { useAnalysisJob } from "../hooks/useAnalysisJob";
 import { useAppStore } from "../store/appStore";
 
-type Phase = "idle" | "analyzing" | "done";
+type Phase = "idle" | "analyzing" | "done" | "error";
 
 export default function AnalyzePage() {
   const [file, setFile] = useState<File | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const { jobId, setJobId, report, reset } = useAppStore();
-  const { status, progress } = useAnalysisJob(jobId);
+  const { status, progress, error: jobError } = useAnalysisJob(jobId);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Transition to done when report arrives
@@ -31,22 +32,41 @@ export default function AnalyzePage() {
     setPhase("done");
   }
 
+  // Transition to error when job fails
+  if (phase === "analyzing" && status === "error") {
+    setPhase("error");
+    if (!errorMsg) {
+      setErrorMsg(
+        typeof jobError === "string"
+          ? jobError
+          : jobError?.message ?? "Analysis failed. The backend may be missing required ML packages (scikit-learn, opencv, mediapipe)."
+      );
+    }
+  }
+
   const handleAnalyze = async () => {
     if (!file) return;
     reset();
+    setErrorMsg(null);
     setPhase("analyzing");
     try {
       const { job_id } = await uploadVideo(file);
       setJobId(job_id);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setPhase("idle");
+      setErrorMsg(
+        err?.response?.data?.detail ??
+          err?.message ??
+          "Failed to upload video. Make sure the backend is running on port 8000."
+      );
+      setPhase("error");
     }
   };
 
   const handleReset = () => {
     reset();
     setFile(null);
+    setErrorMsg(null);
     setPhase("idle");
   };
 
@@ -131,6 +151,64 @@ export default function AnalyzePage() {
               className="flex flex-col items-center"
             >
               <AnalysisProgress status={status} progress={progress} />
+            </motion.div>
+          )}
+
+          {/* ERROR */}
+          {phase === "error" && (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -16 }}
+              className="max-w-lg mx-auto"
+            >
+              <div className="glass rounded-2xl p-8 text-center space-y-6 border border-red-500/30">
+                {/* Error golf ball */}
+                <div className="relative mx-auto w-16 h-16">
+                  <div className="golf-ball w-16 h-16 opacity-50" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <AlertCircle size={28} className="text-red-400" />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-display font-bold text-xl text-red-400 mb-2">
+                    Analysis Failed
+                  </h3>
+                  <p className="text-white/50 text-sm leading-relaxed">
+                    {errorMsg || "An unexpected error occurred during analysis."}
+                  </p>
+                </div>
+
+                {/* Common troubleshooting */}
+                <div className="glass rounded-xl p-4 text-left space-y-2 text-xs text-white/40">
+                  <p className="font-semibold text-white/60">Common causes:</p>
+                  <p>• Missing ML packages: <code className="text-golf-green">pip install scikit-learn opencv-python mediapipe</code></p>
+                  <p>• Unsupported video format (try MP4)</p>
+                  <p>• Backend not running on port 8000</p>
+                  <p>• Video too short or corrupted</p>
+                </div>
+
+                <div className="flex gap-3 justify-center">
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleAnalyze}
+                    className="flex items-center gap-2 px-6 py-3 bg-golf-green/20 border border-golf-green/40 text-golf-green rounded-xl font-semibold text-sm hover:bg-golf-green/30 transition-all"
+                  >
+                    <RefreshCw size={14} /> Retry Analysis
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleReset}
+                    className="flex items-center gap-2 px-6 py-3 glass border border-white/10 text-white/60 rounded-xl text-sm hover:text-white hover:border-white/30 transition-all"
+                  >
+                    <RotateCcw size={14} /> Upload Different Video
+                  </motion.button>
+                </div>
+              </div>
             </motion.div>
           )}
 
@@ -219,6 +297,7 @@ export default function AnalyzePage() {
                 trajectory={report.ball_tracking?.trajectory_2d ?? []}
                 phaseRanges={report.phase_ranges}
                 fps={30}
+                ballTracking={report.ball_tracking}
               />
 
               {/* Plot images */}

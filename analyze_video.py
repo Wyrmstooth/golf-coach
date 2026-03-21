@@ -151,7 +151,8 @@ class MLSwingAnalyzer:
         video_path: str,
         output_dir: str = "output",
         verbose: bool = True,
-        skip_video_render: bool = False
+        skip_video_render: bool = False,
+        progress_callback=None,
     ) -> dict:
         """
         Comprehensive video analysis with ML enhancements
@@ -161,10 +162,17 @@ class MLSwingAnalyzer:
             output_dir: Output directory
             verbose: Show progress
             skip_video_render: Skip creating annotated video (much faster)
+            progress_callback: Optional callable(percent: int) called at each step
 
         Returns:
             Complete analysis results
         """
+        def _progress(pct: int):
+            if callable(progress_callback):
+                try:
+                    progress_callback(pct)
+                except Exception:
+                    pass
         video_path = Path(video_path)
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -177,6 +185,7 @@ class MLSwingAnalyzer:
         # =====================================================================
         # STEP 1: Extract trajectories and pose data (Module 1)
         # =====================================================================
+        _progress(30)
         if verbose:
             print("\n[1/6] Extracting trajectories and pose data...")
 
@@ -192,6 +201,7 @@ class MLSwingAnalyzer:
         # =====================================================================
         # STEP 2: Detect swing phases (Module 1)
         # =====================================================================
+        _progress(42)
         if verbose:
             print("\n[2/6] Detecting swing phases...")
 
@@ -207,6 +217,7 @@ class MLSwingAnalyzer:
         # =====================================================================
         # STEP 3: Extract biomechanical features (Module 2)
         # =====================================================================
+        _progress(54)
         if verbose:
             print("\n[3/6] Extracting biomechanical features...")
 
@@ -239,6 +250,7 @@ class MLSwingAnalyzer:
         # =====================================================================
         # STEP 4: ML Fault Detection (Module 2)
         # =====================================================================
+        _progress(63)
         if verbose:
             print("\n[4/6] Detecting faults using ML...")
 
@@ -311,6 +323,7 @@ class MLSwingAnalyzer:
         # =====================================================================
         # STEP 5: ML Performance Prediction (Module 2)
         # =====================================================================
+        _progress(72)
         if verbose:
             print("\n[5/6] Predicting shot performance...")
 
@@ -356,6 +369,7 @@ class MLSwingAnalyzer:
         ball_distance: Optional[Dict[str, float]] = None
 
         if self.module3_enabled and self.ball_detector and self.ball_tracker:
+            _progress(80)
             if verbose:
                 print("\n[6/6] Tracking ball trajectory (Module 3)...")
 
@@ -395,6 +409,7 @@ class MLSwingAnalyzer:
         # =====================================================================
         # STEP 7: Generate visualizations and report
         # =====================================================================
+        _progress(88)
         if verbose:
             print("\n[7/7] Generating visualizations...")
 
