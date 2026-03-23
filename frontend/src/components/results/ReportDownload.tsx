@@ -29,14 +29,9 @@ const styles = StyleSheet.create({
   title:    { fontSize: 24, fontFamily: "Helvetica-Bold", color: "#16a34a", marginBottom: 4 },
   subtitle: { fontSize: 10, color: "#94a3b8" },
   sectionTitle: {
-    fontSize: 13,
-    fontFamily: "Helvetica-Bold",
-    color: "#16a34a",
-    marginBottom: 8,
-    marginTop: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1e293b",
-    paddingBottom: 4,
+    fontSize: 13, fontFamily: "Helvetica-Bold", color: "#16a34a",
+    marginBottom: 8, marginTop: 16, borderBottomWidth: 1,
+    borderBottomColor: "#1e293b", paddingBottom: 4,
   },
   row:        { flexDirection: "row", marginBottom: 4 },
   cell:       { flex: 1, fontSize: 9, color: "#cbd5e1", padding: 6, backgroundColor: "#1e293b", marginRight: 4 },
@@ -57,19 +52,20 @@ const styles = StyleSheet.create({
   metricLabel: { fontSize: 8, color: "#94a3b8", marginTop: 2 },
   footer:     { position: "absolute", bottom: 20, left: 36, right: 36, flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#1e293b", paddingTop: 8 },
   footerText: { fontSize: 7, color: "#475569" },
-  // Phase section
-  phaseSection: { marginBottom: 14, borderWidth: 1, borderColor: "#1e293b", borderRadius: 4 },
-  phaseHeader:  { fontSize: 12, fontFamily: "Helvetica-Bold", color: "#ffffff", backgroundColor: "#052e16", padding: 8 },
-  phaseScore:   { fontSize: 9, color: "#16a34a", fontFamily: "Helvetica-Bold" },
-  phaseBody:    { flexDirection: "row", padding: 8, gap: 10 },
-  phaseImg:     { width: 160, height: 110, borderRadius: 4, backgroundColor: "#1e293b", objectFit: "cover" },
-  phaseImgPlaceholder: { width: 160, height: 110, borderRadius: 4, backgroundColor: "#1e293b", justifyContent: "center", alignItems: "center" },
+
+  // ── Phase section — stacked layout (image full-width on top, faults below) ───
+  phaseSection:  { marginBottom: 20, borderWidth: 1, borderColor: "#1e293b", borderRadius: 6 },
+  phaseHeader:   { fontSize: 12, fontFamily: "Helvetica-Bold", color: "#ffffff", backgroundColor: "#052e16", padding: 10, borderRadius: 4 },
+  phaseScore:    { fontSize: 9, color: "#16a34a", fontFamily: "Helvetica-Bold" },
+  // A4 usable width = 595 - 2*36 = 523pt
+  phaseImg:      { width: 523, height: 270 },
+  phaseImgPlaceholder: { width: 523, height: 50, backgroundColor: "#1e293b", justifyContent: "center", alignItems: "center" },
   phaseImgPlaceholderText: { fontSize: 8, color: "#475569" },
-  phaseFaults:  { flex: 1 },
-  noFaults:     { fontSize: 9, color: "#16a34a", padding: 8 },
-  warningBox:   { backgroundColor: "#f9731620", padding: 8, borderRadius: 4, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: "#f97316" },
-  successBox:   { backgroundColor: "#16a34a15", padding: 8, borderRadius: 4, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: "#16a34a" },
-  imgCaption:   { fontSize: 7, color: "#475569", textAlign: "center", marginTop: 3 },
+  imgCaption:    { fontSize: 7, color: "#64748b", paddingLeft: 8, paddingBottom: 6, backgroundColor: "#0a1628" },
+  phaseFaults:   { padding: 8 },
+  noFaults:      { fontSize: 9, color: "#16a34a", padding: 6 },
+  warningBox:    { backgroundColor: "#f9731620", padding: 8, borderRadius: 4, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: "#f97316" },
+  successBox:    { backgroundColor: "#16a34a15", padding: 8, borderRadius: 4, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: "#16a34a" },
 });
 
 const PHASE_ORDER  = ["ADDRESS", "BACKSWING", "TOP", "DOWNSWING", "IMPACT", "FOLLOW_THROUGH"];
@@ -85,7 +81,7 @@ const SEV_BORDER: Record<string, string> = {
 interface GolfReportProps {
   report: AnalysisReport;
   analysisDate: string;
-  phaseImages: Record<string, string>; // phase → data URI
+  phaseImages: Record<string, string>;
 }
 
 function GolfReport({ report, analysisDate, phaseImages }: GolfReportProps) {
@@ -99,6 +95,9 @@ function GolfReport({ report, analysisDate, phaseImages }: GolfReportProps) {
 
   const videoName   = report.video.split(/[\\/]/).pop() ?? "video.mp4";
   const totalFaults = report.fault_analysis.fault_details?.summary?.total_faults ?? 0;
+
+  // Split 6 phases across two pages (3 each)
+  const phaseGroups = [PHASE_ORDER.slice(0, 3), PHASE_ORDER.slice(3)];
 
   return (
     <Document>
@@ -117,11 +116,9 @@ function GolfReport({ report, analysisDate, phaseImages }: GolfReportProps) {
 
         <Text style={styles.sectionTitle}>Fault Summary</Text>
         <View style={styles.row}>
-          {["Severity", "Count", "Percentage"].map(h => (
-            <Text key={h} style={styles.cellHeader}>{h}</Text>
-          ))}
+          {["Severity", "Count", "Percentage"].map(h => <Text key={h} style={styles.cellHeader}>{h}</Text>)}
         </View>
-        {(["critical", "major", "minor"] as const).map((sev) => {
+        {(["critical", "major", "minor"] as const).map(sev => {
           const count = report.fault_analysis.fault_details?.summary?.[`${sev}_count`] ?? 0;
           return (
             <View style={styles.row} key={sev}>
@@ -150,7 +147,7 @@ function GolfReport({ report, analysisDate, phaseImages }: GolfReportProps) {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>GolfCoach AI — Automated Swing Analysis Report</Text>
-          <Text style={styles.footerText}>Page 1 of 4</Text>
+          <Text style={styles.footerText}>Page 1 of 5</Text>
         </View>
       </Page>
 
@@ -172,7 +169,7 @@ function GolfReport({ report, analysisDate, phaseImages }: GolfReportProps) {
             <View style={styles.row} key={phase}>
               <Text style={styles.cell}>{PHASE_LABELS[phase] ?? phase.replace("_", " ")}</Text>
               <Text style={styles.cell}>{start}–{end}</Text>
-              <Text style={[styles.cell, styles[(s?.max_severity as "critical"|"major"|"minor") ?? "minor"] ?? {}]}>{s?.max_severity ?? "none"}</Text>
+              <Text style={[styles.cell, styles[(s?.max_severity as "critical"|"major"|"minor")] ?? {}]}>{s?.max_severity ?? "none"}</Text>
               <Text style={styles.cell}>{total}</Text>
               <Text style={styles.cell}>{s?.score?.toFixed(0) ?? "—"}/100</Text>
               <Text style={styles.cell}>{s?.top_fault_titles?.[0] ?? "—"}</Text>
@@ -181,57 +178,56 @@ function GolfReport({ report, analysisDate, phaseImages }: GolfReportProps) {
         })}
         <View style={styles.footer}>
           <Text style={styles.footerText}>GolfCoach AI — Automated Swing Analysis Report</Text>
-          <Text style={styles.footerText}>Page 2 of 4</Text>
+          <Text style={styles.footerText}>Page 2 of 5</Text>
         </View>
       </Page>
 
-      {/* ── Page 3 – Per-Phase Screenshots + Fault Details ── */}
-      <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Detailed Fault Analysis by Phase</Text>
-          <Text style={styles.subtitle}>Screenshots show the exact frame where each fault appears, with body region highlighted</Text>
-        </View>
+      {/* ── Pages 3 & 4 – Per-Phase Screenshots + Fault Details (3 phases each page) ── */}
+      {phaseGroups.map((group, pageIdx) => (
+        <Page key={pageIdx} size="A4" style={styles.page}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Fault Analysis by Phase {pageIdx === 0 ? "(1/2)" : "(2/2)"}</Text>
+            <Text style={styles.subtitle}>
+              Full-frame annotated screenshots — coloured boxes highlight the exact body region where each fault occurs
+            </Text>
+          </View>
 
-        {PHASE_ORDER.map((phase) => {
-          const phaseFaults  = byPhase[phase] ?? [];
-          const phaseLabel   = PHASE_LABELS[phase] ?? phase.replace("_", " ");
-          const phaseSum     = summary[phase];
-          const phaseScore   = phaseSum?.score;
-          const maxSev       = phaseSum?.max_severity ?? "none";
-          const imgDataUri   = phaseImages[phase];
-          const midFrame     = report.phase_ranges[phase]
-            ? Math.floor((report.phase_ranges[phase][0] + report.phase_ranges[phase][1]) / 2)
-            : null;
+          {group.map(phase => {
+            const phaseFaults = byPhase[phase] ?? [];
+            const phaseLabel  = PHASE_LABELS[phase] ?? phase.replace("_", " ");
+            const phaseSum    = summary[phase];
+            const phaseScore  = phaseSum?.score;
+            const maxSev      = phaseSum?.max_severity ?? "none";
+            const imgDataUri  = phaseImages[phase];
+            const midFrame    = report.phase_ranges[phase]
+              ? Math.floor((report.phase_ranges[phase][0] + report.phase_ranges[phase][1]) / 2)
+              : null;
 
-          return (
-            <View key={phase} style={[styles.phaseSection, { borderLeftWidth: 3, borderLeftColor: SEV_BORDER[maxSev] ?? "#16a34a" }]} wrap={false}>
-              {/* Phase header row */}
-              <View style={[styles.phaseHeader, { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }]}>
-                <Text>{phaseLabel}</Text>
-                {phaseScore !== undefined && (
-                  <Text style={styles.phaseScore}>Score: {phaseScore.toFixed(0)}/100</Text>
-                )}
-              </View>
-
-              {/* Screenshot + faults side-by-side */}
-              <View style={styles.phaseBody}>
-                {/* Left: screenshot */}
-                <View>
-                  {imgDataUri ? (
-                    <>
-                      <Image src={imgDataUri} style={styles.phaseImg} />
-                      <Text style={styles.imgCaption}>
-                        Frame {midFrame ?? "—"} · {phaseLabel}
-                      </Text>
-                    </>
-                  ) : (
-                    <View style={styles.phaseImgPlaceholder}>
-                      <Text style={styles.phaseImgPlaceholderText}>No screenshot</Text>
-                    </View>
+            return (
+              <View
+                key={phase}
+                style={[styles.phaseSection, { borderLeftWidth: 4, borderLeftColor: SEV_BORDER[maxSev] ?? "#16a34a" }]}
+                wrap={false}
+              >
+                {/* Phase header */}
+                <View style={[styles.phaseHeader, { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }]}>
+                  <Text>{phaseLabel}</Text>
+                  {phaseScore !== undefined && (
+                    <Text style={styles.phaseScore}>Score: {phaseScore.toFixed(0)}/100</Text>
                   )}
                 </View>
 
-                {/* Right: fault cards */}
+                {/* Full-width annotated screenshot */}
+                {imgDataUri ? (
+                  <Image src={imgDataUri} style={styles.phaseImg} />
+                ) : (
+                  <View style={styles.phaseImgPlaceholder}>
+                    <Text style={styles.phaseImgPlaceholderText}>Screenshot not available</Text>
+                  </View>
+                )}
+                <Text style={styles.imgCaption}>Frame {midFrame ?? "—"} · {phaseLabel}</Text>
+
+                {/* Fault cards below the screenshot */}
                 <View style={styles.phaseFaults}>
                   {phaseFaults.length === 0 ? (
                     <View style={styles.successBox}>
@@ -239,31 +235,32 @@ function GolfReport({ report, analysisDate, phaseImages }: GolfReportProps) {
                     </View>
                   ) : (
                     phaseFaults.map((f, i) => (
-                      <View style={[styles.faultBox, { borderLeftWidth: 2, borderLeftColor: SEV_BORDER[f.severity] ?? "#16a34a" }]} key={i}>
+                      <View
+                        key={i}
+                        style={[styles.faultBox, { borderLeftWidth: 2, borderLeftColor: SEV_BORDER[f.severity] ?? "#16a34a" }]}
+                      >
                         <Text style={[styles.faultTitle, styles[(f.severity as "critical"|"major"|"minor")] ?? {}]}>
                           [{f.severity.toUpperCase()}] {f.title}
                         </Text>
                         <Text style={styles.faultDesc}>{f.description}</Text>
-                        <Text style={styles.faultMeasurement}>
-                          Measured: {f.value.toFixed(1)}° | Expected: {f.expected}
-                        </Text>
+                        <Text style={styles.faultMeasurement}>Measured: {f.value.toFixed(1)}° | Expected: {f.expected}</Text>
                         <Text style={styles.faultFix}>Fix: {f.fix}</Text>
                       </View>
                     ))
                   )}
                 </View>
               </View>
-            </View>
-          );
-        })}
+            );
+          })}
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>GolfCoach AI — Automated Swing Analysis Report</Text>
-          <Text style={styles.footerText}>Page 3 of 4</Text>
-        </View>
-      </Page>
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>GolfCoach AI — Automated Swing Analysis Report</Text>
+            <Text style={styles.footerText}>Page {pageIdx + 3} of 5</Text>
+          </View>
+        </Page>
+      ))}
 
-      {/* ── Page 4 – Ball Tracking & Distance ── */}
+      {/* ── Page 5 – Ball Tracking & Distance ── */}
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <Text style={styles.title}>Ball Tracking & Distance Estimation</Text>
@@ -315,7 +312,7 @@ function GolfReport({ report, analysisDate, phaseImages }: GolfReportProps) {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>GolfCoach AI — Automated Swing Analysis Report</Text>
-          <Text style={styles.footerText}>Page 4 of 4</Text>
+          <Text style={styles.footerText}>Page 5 of 5</Text>
         </View>
       </Page>
     </Document>
@@ -355,14 +352,13 @@ export default function ReportDownload({ report, jobId }: Props2) {
         year: "numeric", month: "long", day: "numeric",
       });
 
-      // Fetch all phase screenshots in parallel (only when jobId is available)
+      // Fetch phase screenshots as base64 data URIs (only when jobId is present)
       const phaseImages: Record<string, string> = {};
       if (jobId) {
         const phaseScreenshots = report.outputs?.phase_screenshots ?? {};
         const entries = await Promise.all(
           Object.entries(phaseScreenshots).map(async ([phase, filename]) => {
-            const url = `/api/files/${jobId}/${filename}`;
-            const dataUri = await fetchAsDataUri(url);
+            const dataUri = await fetchAsDataUri(`/api/files/${jobId}/${filename}`);
             return [phase, dataUri] as [string, string | null];
           })
         );
@@ -386,7 +382,6 @@ export default function ReportDownload({ report, jobId }: Props2) {
       setGenerating(false);
     }
   };
-
 
   return (
     <motion.button

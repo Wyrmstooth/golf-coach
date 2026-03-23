@@ -1,0 +1,302 @@
+{
+  "video": "C:\\Users\\zainy\\OneDrive\\Desktop\\FYP-II\\golf_optimized\\output\\772a399a-2e27-4860-ad12-6d3296e14b34\\input.mp4",
+  "phase_ranges": {
+    "ADDRESS": [
+      0,
+      305
+    ],
+    "BACKSWING": [
+      305,
+      306
+    ],
+    "TOP": [
+      306,
+      310
+    ],
+    "DOWNSWING": [
+      310,
+      322
+    ],
+    "IMPACT": [
+      322,
+      328
+    ],
+    "FOLLOW_THROUGH": [
+      328,
+      330
+    ]
+  },
+  "swing_frames": {
+    "start": 305,
+    "end": 330
+  },
+  "fault_analysis": {
+    "overall_score": 27.7787983417511,
+    "swing_quality": "Unknown",
+    "fault_details": {
+      "faults": [
+        {
+          "phase": "ADDRESS",
+          "severity": "minor",
+          "title": "Arms Too Close",
+          "description": "Armpit angle is 23.0\u00b0 (cramped)",
+          "fix": "Create more space between arms and body",
+          "feature": "0-RIGHT-ARMPIT-ANGLE",
+          "value": 23.016387781829685,
+          "expected": "30\u00b0 to 45\u00b0"
+        },
+        {
+          "phase": "BACKSWING",
+          "severity": "major",
+          "title": "Early Hip Slide",
+          "description": "Hips shifting toward target (-0.26)",
+          "fix": "Keep hips stable, rotate dont slide",
+          "feature": "1-HIP-SHIFTED",
+          "value": -0.26196480194283667,
+          "expected": "0.0 to 0.15"
+        },
+        {
+          "phase": "TOP",
+          "severity": "major",
+          "title": "Left Arm Breakdown",
+          "description": "Left arm bent to 89.5\u00b0 (should be straighter)",
+          "fix": "Maintain straighter left arm at top",
+          "feature": "2-LEFT-ARM-ANGLE",
+          "value": 89.48672332699826,
+          "expected": "100\u00b0 to 160\u00b0"
+        },
+        {
+          "phase": "IMPACT",
+          "severity": "major",
+          "title": "Loss of Posture",
+          "description": "Spine at -78.3\u00b0 (lost posture through impact)",
+          "fix": "Maintain spine angle from address through impact",
+          "feature": "4-SPINE-ANGLE",
+          "value": -78.31909327712297,
+          "expected": "-65\u00b0 to -74\u00b0"
+        }
+      ],
+      "by_phase": {
+        "ADDRESS": [
+          {
+            "phase": "ADDRESS",
+            "severity": "minor",
+            "title": "Arms Too Close",
+            "description": "Armpit angle is 23.0\u00b0 (cramped)",
+            "fix": "Create more space between arms and body",
+            "feature": "0-RIGHT-ARMPIT-ANGLE",
+            "value": 23.016387781829685,
+            "expected": "30\u00b0 to 45\u00b0"
+          }
+        ],
+        "BACKSWING": [
+          {
+            "phase": "BACKSWING",
+            "severity": "major",
+            "title": "Early Hip Slide",
+            "description": "Hips shifting toward target (-0.26)",
+            "fix": "Keep hips stable, rotate dont slide",
+            "feature": "1-HIP-SHIFTED",
+            "value": -0.26196480194283667,
+            "expected": "0.0 to 0.15"
+          }
+        ],
+        "TOP": [
+          {
+            "phase": "TOP",
+            "severity": "major",
+            "title": "Left Arm Breakdown",
+            "description": "Left arm bent to 89.5\u00b0 (should be straighter)",
+            "fix": "Maintain straighter left arm at top",
+            "feature": "2-LEFT-ARM-ANGLE",
+            "value": 89.48672332699826,
+            "expected": "100\u00b0 to 160\u00b0"
+          }
+        ],
+        "DOWNSWING": [],
+        "IMPACT": [
+          {
+            "phase": "IMPACT",
+            "severity": "major",
+            "title": "Loss of Posture",
+            "description": "Spine at -78.3\u00b0 (lost posture through impact)",
+            "fix": "Maintain spine angle from address through impact",
+            "feature": "4-SPINE-ANGLE",
+            "value": -78.31909327712297,
+            "expected": "-65\u00b0 to -74\u00b0"
+          }
+        ],
+        "FOLLOW_THROUGH": []
+      },
+      "by_severity": {
+        "critical": [],
+        "major": [
+          {
+            "phase": "BACKSWING",
+            "severity": "major",
+            "title": "Early Hip Slide",
+            "description": "Hips shifting toward target (-0.26)",
+            "fix": "Keep hips stable, rotate dont slide",
+            "feature": "1-HIP-SHIFTED",
+            "value": -0.26196480194283667,
+            "expected": "0.0 to 0.15"
+          },
+          {
+            "phase": "TOP",
+            "severity": "major",
+            "title": "Left Arm Breakdown",
+            "description": "Left arm bent to 89.5\u00b0 (should be straighter)",
+            "fix": "Maintain straighter left arm at top",
+            "feature": "2-LEFT-ARM-ANGLE",
+            "value": 89.48672332699826,
+            "expected": "100\u00b0 to 160\u00b0"
+          },
+          {
+            "phase": "IMPACT",
+            "severity": "major",
+            "title": "Loss of Posture",
+            "description": "Spine at -78.3\u00b0 (lost posture through impact)",
+            "fix": "Maintain spine angle from address through impact",
+            "feature": "4-SPINE-ANGLE",
+            "value": -78.31909327712297,
+            "expected": "-65\u00b0 to -74\u00b0"
+          }
+        ],
+        "minor": [
+          {
+            "phase": "ADDRESS",
+            "severity": "minor",
+            "title": "Arms Too Close",
+            "description": "Armpit angle is 23.0\u00b0 (cramped)",
+            "fix": "Create more space between arms and body",
+            "feature": "0-RIGHT-ARMPIT-ANGLE",
+            "value": 23.016387781829685,
+            "expected": "30\u00b0 to 45\u00b0"
+          }
+        ]
+      },
+      "summary": {
+        "total_faults": 4,
+        "critical_count": 0,
+        "major_count": 3,
+        "minor_count": 1
+      }
+    },
+    "messages": [
+      "\ud83d\udfe1 [ADDRESS] Arms Too Close: Armpit angle is 23.0\u00b0 (cramped) \u2192 Create more space between arms and body",
+      "\ud83d\udfe0 [BACKSWING] Early Hip Slide: Hips shifting toward target (-0.26) \u2192 Keep hips stable, rotate dont slide",
+      "\ud83d\udfe0 [TOP] Left Arm Breakdown: Left arm bent to 89.5\u00b0 (should be straighter) \u2192 Maintain straighter left arm at top",
+      "\ud83d\udfe0 [IMPACT] Loss of Posture: Spine at -78.3\u00b0 (lost posture through impact) \u2192 Maintain spine angle from address through impact"
+    ],
+    "critical_faults": []
+  },
+  "phase_fault_summary": {
+    "ADDRESS": {
+      "max_severity": "minor",
+      "counts": {
+        "critical": 0,
+        "major": 0,
+        "minor": 1
+      },
+      "score": 12.5,
+      "top_fault_titles": [
+        "Arms Too Close"
+      ]
+    },
+    "BACKSWING": {
+      "max_severity": "major",
+      "counts": {
+        "critical": 0,
+        "major": 1,
+        "minor": 0
+      },
+      "score": 25.0,
+      "top_fault_titles": [
+        "Early Hip Slide"
+      ]
+    },
+    "TOP": {
+      "max_severity": "major",
+      "counts": {
+        "critical": 0,
+        "major": 1,
+        "minor": 0
+      },
+      "score": 25.0,
+      "top_fault_titles": [
+        "Left Arm Breakdown"
+      ]
+    },
+    "DOWNSWING": {
+      "max_severity": "none",
+      "counts": {
+        "critical": 0,
+        "major": 0,
+        "minor": 0
+      },
+      "score": 0.0,
+      "top_fault_titles": []
+    },
+    "IMPACT": {
+      "max_severity": "major",
+      "counts": {
+        "critical": 0,
+        "major": 1,
+        "minor": 0
+      },
+      "score": 25.0,
+      "top_fault_titles": [
+        "Loss of Posture"
+      ]
+    },
+    "FOLLOW_THROUGH": {
+      "max_severity": "none",
+      "counts": {
+        "critical": 0,
+        "major": 0,
+        "minor": 0
+      },
+      "score": 0.0,
+      "top_fault_titles": []
+    }
+  },
+  "performance_prediction": {
+    "BallSpeed": 34.876766204833984,
+    "Distance": 77.21659088134766,
+    "Carry": 64.33802795410156,
+    "confidence": 85.0
+  },
+  "ball_tracking": {
+    "enabled": true,
+    "status": "fallback",
+    "quality": {
+      "status": "error"
+    },
+    "distance_estimation": {
+      "carry_yards": 64.33802795410156,
+      "distance_yards": 77.21659088134766,
+      "confidence": 85.0,
+      "method": "ml_pose_fallback",
+      "notes": "Module 3 disabled or no ball trajectory; using Module 2 performance prediction."
+    },
+    "trajectory_2d": [],
+    "files": {
+      "csv": null,
+      "json": null,
+      "plot": null
+    }
+  },
+  "outputs": {
+    "plot": "C:\\Users\\zainy\\OneDrive\\Desktop\\FYP-II\\golf_optimized\\output\\772a399a-2e27-4860-ad12-6d3296e14b34\\input_analysis.png",
+    "annotated_video": "C:\\Users\\zainy\\OneDrive\\Desktop\\FYP-II\\golf_optimized\\output\\772a399a-2e27-4860-ad12-6d3296e14b34\\input_annotated.mp4",
+    "ball_plot": null,
+    "phase_screenshots": {
+      "ADDRESS": "phase_ADDRESS.png",
+      "BACKSWING": "phase_BACKSWING.png",
+      "TOP": "phase_TOP.png",
+      "DOWNSWING": "phase_DOWNSWING.png",
+      "IMPACT": "phase_IMPACT.png",
+      "FOLLOW_THROUGH": "phase_FOLLOW_THROUGH.png"
+    }
+  }
+}
