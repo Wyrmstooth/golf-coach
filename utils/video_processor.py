@@ -442,6 +442,300 @@ class VideoProcessor:
             if start <= frame_idx <= end:
                 return phase_name
         return "UNKNOWN"
+
+    # ------------------------------------------------------------------
+    # Fault callout body-region map
+    # Maps fragments of fault titles → lists of MediaPipe landmark indices
+    # that define the bounding box for the callout rectangle.
+    # ------------------------------------------------------------------
+    _FAULT_REGION_MAP: Dict[str, List[int]] = {
+        # Arms
+        "Right Arm":       [12, 14, 16],   # R shoulder, R elbow, R wrist
+        "Left Arm":        [11, 13, 15],   # L shoulder, L elbow, L wrist
+        "Arm Collapse":    [12, 14, 16],
+        # Shoulders
+        "Shoulder":        [11, 12],
+        "Shoulder Tilt":   [11, 12],
+        "Shoulder Plane":  [11, 12],
+        # Hips
+        "Hip":             [23, 24],
+        "Hip Rotation":    [23, 24],
+        "Early Extension": [23, 24, 11, 12],
+        # Spine / posture
+        "Spine":           [11, 12, 23, 24],
+        "Forward Bend":    [11, 12, 23, 24],
+        "Posture":         [11, 12, 23, 24],
+        # Knees
+        "Knee":            [25, 26],
+        "Early Extension": [25, 26, 23, 24],
+        # Wrists / club
+        "Wrist":           [15, 16],
+        "Club":            [15, 16],
+        # Head
+        "Head":            [0, 7, 8],
+        "Eye":             [1, 4],
+    }
+
+    def _draw_fault_callouts(
+        self,
+        frame: np.ndarray,
+        faults: List[Dict],
+        landmarks: Optional[np.ndarray],
+        scale: float = 1.0,
+    ) -> np.ndarray:
+        """
+        Draw semi-transparent colored bounding boxes around the body regions
+        associated with critical/major faults.
+
+        Args:
+            frame: BGR image to annotate (modified in-place copy returned)
+            faults: list of fault dicts (keys: severity, title)
+            landmarks: (N, 4) array of normalised [x, y, z, visibility] coords
+            scale: UI scale factor matching _add_annotations
+        """
+        if not faults or landmarks is None or landmarks.shape[0] == 0:
+            return frame
+
+        h, w = frame.shape[:2]
+        overlay = frame.copy()
+
+        SEVERITY_COLOR = {
+            "critical": (0, 0, 220),    # red (BGR)
+            "major":    (0, 140, 255),  # orange
+            "minor":    (0, 210, 255),  # yellow
+        }
+        SEVERITY_ALPHA = {"critical": 0.35, "major": 0.3, "minor": 0.25}
+        PAD = int(18 * scale)
+
+        for fault in faults:
+            sev = (fault.get("severity") or "").lower()
+            if sev not in SEVERITY_COLOR:
+                continue
+            title = fault.get("title") or ""
+
+            # Find the best matching region
+            indices: List[int] = []
+            for keyword, lm_indices in self._FAULT_REGION_MAP.items():
+                if keyword.lower() in title.lower():
+                    indices = lm_indices
+                    break
+            if not indices:
+                # Fallback: full upper body
+                indices = [11, 12, 23, 24]
+
+            # Gather pixel coords for region
+            xs, ys = [], []
+            for idx in indices:
+                if 0 <= idx < landmarks.shape[0]:
+                    vis = landmarks[idx][3] if landmarks.shape[1] > 3 else 1.0
+                    if vis > 0.3:
+                        xs.append(int(landmarks[idx][0] * w))
+                        ys.append(int(landmarks[idx][1] * h))
+
+            if not xs:
+                continue
+
+            x1 = max(0, min(xs) - PAD)
+            y1 = max(0, min(ys) - PAD)
+            x2 = min(w - 1, max(xs) + PAD)
+            y2 = min(h - 1, max(ys) + PAD)
+
+            color = SEVERITY_COLOR[sev]
+            alpha = SEVERITY_ALPHA[sev]
+
+            # Filled semi-transparent rectangle
+            cv2.rectangle(overlay, (x1, y1), (x2, y2), color, -1)
+            frame = cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0)
+            overlay = frame.copy()  # reset overlay for next fault
+
+            # Border
+            border_thick = max(2, int(2 * scale))
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, border_thick)
+
+            # Label pill: "[SEV] Title (truncated)"
+            label = f"[{sev.upper()}] {title[:28]}"
+            font_scale = 0.35 * scale
+            font_thick = max(1, int(1 * scale))
+            (tw, th), _ = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thick
+            )
+            lx = x1
+            ly = max(th + 6, y1 - 4)
+            cv2.rectangle(frame, (lx, ly - th - 4), (lx + tw + 8, ly + 2), color, -1)
+            cv2.putText(
+                frame, label,
+                (lx + 4, ly),
+                cv2.FONT_HERSHEY_SIMPLEX, font_scale,
+                (255, 255, 255), font_thick, cv2.LINE_AA,
+            )
+
+        return frame
+
+    def extract_phase_screenshots(
+        self,
+        video_path: str,
+        output_dir: str,
+        phase_ranges: Dict[str, Tuple[int, int]],
+        faults_by_phase: Optional[Dict[str, List[Dict]]] = None,
+        max_resolution: int = 1080,
+    ) -> Dict[str, str]:
+        """
+        Extract one annotated screenshot per swing phase.
+
+        For each phase the method seeks to the middle frame, draws the pose
+        skeleton, phase banner, and fault callout boxes around the affected
+        body region, then saves a PNG to output_dir.
+
+        Args:
+            video_path:      Input video path
+            output_dir:      Directory to save PNGs
+            phase_ranges:    Dict mapping phase name → (start_frame, end_frame)
+            faults_by_phase: Optional dict mapping phase → list of fault dicts
+            max_resolution:  Max height; larger videos are downscaled
+
+        Returns:
+            Dict mapping phase name → absolute PNG path (missing phases omitted)
+        """
+        from pathlib import Path
+        output_dir = Path(output_dir)
+
+        cap = cv2.VideoCapture(str(video_path))
+        width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        # Same scale logic as create_annotated_video
+        if width < 640:
+            scale_factor = 640 / width
+        elif height > max_resolution:
+            scale_factor = max_resolution / height
+        else:
+            scale_factor = 1.0
+
+        out_w = int(width  * scale_factor)
+        out_h = int(height * scale_factor)
+        ui_scale = min(out_w, out_h) / 160.0
+
+        pose = self.mp_pose.Pose(
+            static_image_mode=True,
+            model_complexity=1,
+            min_detection_confidence=0.5,
+        )
+
+        saved: Dict[str, str] = {}
+
+        PHASE_ORDER = ["ADDRESS", "BACKSWING", "TOP", "DOWNSWING", "IMPACT", "FOLLOW_THROUGH"]
+
+        # Precompute banner colors
+        severity_to_color = {
+            "none":     (0, 200, 80),
+            "minor":    (0, 215, 255),
+            "major":    (0, 140, 255),
+            "critical": (0, 0, 220),
+        }
+        severity_emoji = {"critical": "[CRIT]", "major": "[MAJOR]", "minor": "[MINOR]"}
+        phase_banner_colors: Dict[str, Tuple[int, int, int]] = {}
+        phase_fault_labels:  Dict[str, List[str]]            = {}
+        if faults_by_phase:
+            for pname, pfaults in faults_by_phase.items():
+                counts = {"critical": 0, "major": 0, "minor": 0}
+                labels: List[str] = []
+                for f in (pfaults or []):
+                    s = (f.get("severity") or "").lower()
+                    if s in counts:
+                        counts[s] += 1
+                    t = f.get("title")
+                    if t:
+                        labels.append(f"{severity_emoji.get(s, '')} {t}")
+                max_sev = "none"
+                for s in ("critical", "major", "minor"):
+                    if counts[s] > 0:
+                        max_sev = s
+                        break
+                phase_banner_colors[pname] = severity_to_color[max_sev]
+                phase_fault_labels[pname]  = labels[:2]
+
+        try:
+            for phase in PHASE_ORDER:
+                if phase not in phase_ranges:
+                    continue
+                start, end = phase_ranges[phase]
+                mid_frame = (start + end) // 2
+
+                # Seek to mid frame
+                cap.set(cv2.CAP_PROP_POS_FRAMES, mid_frame)
+                ret, frame = cap.read()
+                if not ret or frame is None:
+                    continue
+
+                # Resize
+                if scale_factor != 1.0:
+                    frame = cv2.resize(
+                        frame, (out_w, out_h), interpolation=cv2.INTER_CUBIC
+                    )
+
+                # Track landmarks for callouts
+                current_landmarks: Optional[np.ndarray] = None
+
+                # Pose overlay
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = pose.process(rgb)
+                if results.pose_landmarks:
+                    self.mp_drawing.draw_landmarks(
+                        frame,
+                        results.pose_landmarks,
+                        self.mp_pose.POSE_CONNECTIONS,
+                        landmark_drawing_spec=self.mp_style.get_default_pose_landmarks_style(),
+                    )
+                    current_landmarks = extract_landmarks_from_mediapipe(
+                        results.pose_landmarks, self.mp_pose
+                    )
+                    self._current_angles = self._calculate_angles(current_landmarks)
+
+                # Phase banner + fault text labels
+                frame = self._add_annotations(
+                    frame, phase, mid_frame, out_w, out_h,
+                    phase_banner_colors=phase_banner_colors,
+                    phase_fault_labels=phase_fault_labels,
+                )
+
+                # Fault callout boxes (body region highlights)
+                if faults_by_phase and current_landmarks is not None:
+                    phase_faults = faults_by_phase.get(phase) or []
+                    frame = self._draw_fault_callouts(
+                        frame, phase_faults, current_landmarks, scale=ui_scale
+                    )
+
+                # Add "Phase Screenshot" watermark in bottom-right corner
+                wm_text = f"Frame {mid_frame}  |  {phase.replace('_', ' ')}"
+                wm_scale = 0.28 * ui_scale
+                wm_thick = max(1, int(1 * ui_scale))
+                (tw, th), _ = cv2.getTextSize(
+                    wm_text, cv2.FONT_HERSHEY_SIMPLEX, wm_scale, wm_thick
+                )
+                cv2.rectangle(
+                    frame,
+                    (out_w - tw - 10, out_h - th - 10),
+                    (out_w - 2, out_h - 2),
+                    (0, 0, 0), -1,
+                )
+                cv2.putText(
+                    frame, wm_text,
+                    (out_w - tw - 6, out_h - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, wm_scale,
+                    (180, 180, 180), wm_thick, cv2.LINE_AA,
+                )
+
+                png_name = f"phase_{phase}.png"
+                png_path = output_dir / png_name
+                cv2.imwrite(str(png_path), frame)
+                saved[phase] = str(png_path)
+
+        finally:
+            cap.release()
+            pose.close()
+
+        print(f"📸 Saved {len(saved)} phase screenshots to {output_dir}")
+        return saved
     
     def _reencode_video(self, video_path: str) -> str:
         """Re-encode video for better compatibility"""

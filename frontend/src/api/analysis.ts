@@ -66,6 +66,7 @@ export interface AnalysisReport {
     plot: string;
     annotated_video: string | null;
     ball_plot: string | null;
+    phase_screenshots: Record<string, string>;
   };
 }
 

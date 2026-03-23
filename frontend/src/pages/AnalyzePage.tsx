@@ -237,7 +237,8 @@ export default function AnalyzePage() {
                     Video: <span className="text-white/70">{report.video.split(/[\\/]/).pop()}</span>
                   </p>
                   <div className="flex flex-wrap gap-3">
-                    {report && <ReportDownload report={report} />}
+                    {report && jobId && <ReportDownload report={report} jobId={jobId} />}
+
                     <motion.button
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}

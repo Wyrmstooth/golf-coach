@@ -451,6 +451,23 @@ class MLSwingAnalyzer:
         elif verbose:
             print("   Skipping video rendering (use skip_video_render=False to enable)")
 
+        # Extract per-phase annotated screenshots
+        faults_by_phase_for_screenshots = (
+            fault_results.get('details', {}).get('by_phase') if fault_results else None
+        )
+        phase_screenshots = self.video_processor.extract_phase_screenshots(
+            str(video_path),
+            str(output_dir),
+            phase_ranges,
+            faults_by_phase=faults_by_phase_for_screenshots,
+        )
+        # Store just the filenames (not full paths) so the API can serve them
+        phase_screenshot_filenames = {
+            phase: Path(path).name
+            for phase, path in phase_screenshots.items()
+        }
+
+
         # =====================================================================
         # Create comprehensive JSON report
         # =====================================================================
@@ -612,7 +629,9 @@ class MLSwingAnalyzer:
                 'plot': str(plot_path),
                 'annotated_video': str(annotated_video_path) if annotated_video_path else None,
                 'ball_plot': str(ball_plot_path) if ball_plot_path else None,
+                'phase_screenshots': phase_screenshot_filenames,
             }
+
         }
 
         # Save report
