@@ -25,6 +25,19 @@ from fastapi.responses import FileResponse, JSONResponse
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
+# ---- Guard: mediapipe Tasks API is broken on Python 3.12+ ----
+import sys as _sys
+if _sys.version_info >= (3, 12):
+    import warnings
+    warnings.warn(
+        f"WARNING: Backend is running on Python {_sys.version_info.major}.{_sys.version_info.minor} "
+        "(base conda env). MediaPipe requires Python 3.10.\n"
+        "Start the backend with:\n"
+        "  & \"$env:USERPROFILE\\miniconda3\\envs\\golfpose\\python.exe\" "
+        "-m uvicorn backend.main:app --reload --port 8000",
+        stacklevel=1,
+    )
+
 from backend.job_store import job_store
 
 router = APIRouter()

@@ -18,6 +18,7 @@ from typing import Any, Dict
 
 import numpy as np
 import cv2
+import mediapipe_compat  # patches mp.solutions for MediaPipe 0.10.x  # noqa: F401
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
@@ -71,8 +72,7 @@ def _check_address_posture_frame(frame: np.ndarray) -> Dict[str, Any]:
         if not results.pose_landmarks:
             return result
 
-        lm = results.pose_landmarks.landmark
-        feedback = corrector.check_address_posture(lm)
+        feedback = corrector.check_address_posture(results.pose_landmarks)
 
         result["status"] = "ok"
         result["angles"] = feedback.get("angles", {})
