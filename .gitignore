@@ -1,0 +1,101 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.venv
+venv/
+ENV/
+env/
+.venv
+
+# PyCharm
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# IDEs
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+pnpm-lock.yaml
+dist/
+
+# Generated output & temp files
+output/
+*.mp4
+*.mov
+*.avi
+temp/
+tmp/
+*.tmp
+
+# Large model files (use git-lfs if needed)
+models/*.task
+models/*.pt
+*.task
+*.pt
+
+# Environment & config
+.env
+.env.local
+config.local.yaml
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE temp files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+logs/
+
+# Cache
+.cache/
+.pytest_cache/
+.mypy_cache/
+
+# Backend temp
+backend/package-lock.json
+
+# Frontend
+frontend/dist/
+frontend/build/
+
+# Jupyter
+.ipynb_checkpoints/
