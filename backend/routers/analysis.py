@@ -15,6 +15,7 @@ import sys
 import uuid
 import tempfile
 import traceback
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict
@@ -25,6 +26,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from backend.auth import get_optional_user
 from backend.database import get_db
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger("golfcoach")
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
