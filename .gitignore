@@ -60,6 +60,8 @@ temp/
 tmp/
 *.tmp
 
+golf.db
+
 # Large model files (use git-lfs if needed)
 models/*.task
 models/*.pt
