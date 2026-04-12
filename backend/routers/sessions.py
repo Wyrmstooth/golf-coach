@@ -113,16 +113,27 @@ def save_session_for_user(
     report: dict,
 ) -> SwingSession:
     """Called after analysis completes to persist results for a logged-in user."""
-    score        = report.get("overall_score") or report.get("swing_score")
-    quality      = report.get("swing_quality") or report.get("quality_label")
-    faults_raw   = report.get("faults_detected") or report.get("faults") or []
-    # faults_raw may be list of strings or list of dicts
+    # Try nested structure first (fault_analysis), then flat structure for backwards compat
+    fault_analysis = report.get("fault_analysis", {})
+    score        = fault_analysis.get("overall_score") or report.get("overall_score") or report.get("swing_score")
+    quality      = fault_analysis.get("swing_quality") or report.get("swing_quality") or report.get("quality_label")
+    
+    # Get faults from fault_details or top-level
+    faults_raw   = []
+    if "fault_details" in fault_analysis and isinstance(fault_analysis["fault_details"], dict):
+        faults_raw = fault_analysis["fault_details"].get("faults", [])
+    if not faults_raw:
+        faults_raw = report.get("faults_detected") or report.get("faults") or []
+    
+    # Extract fault names from FaultDetail objects
     fault_names: list[str] = []
     for f in faults_raw:
         if isinstance(f, str):
             fault_names.append(f)
         elif isinstance(f, dict):
-            fault_names.append(f.get("name") or f.get("fault") or str(f))
+            # FaultDetail has "title" field
+            fault_name = f.get("title") or f.get("name") or f.get("fault") or str(f)
+            fault_names.append(fault_name)
 
     s = SwingSession(
         user_id=user_id,
