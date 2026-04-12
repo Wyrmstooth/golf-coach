@@ -2,8 +2,13 @@
 Visualization tools for golf swing analysis
 """
 
+import os
+os.environ['MPLBACKEND'] = 'Agg'
+
 import cv2
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend for multi-threaded environments
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.patches import Patch

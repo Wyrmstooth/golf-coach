@@ -5,8 +5,26 @@ Run from the golf_optimized/ root directory:
 """
 from __future__ import annotations
 
-import sys
+# ============================================================================
+# CRITICAL: Set non-GUI matplotlib backend BEFORE any matplotlib imports
+# This prevents "main thread is not in main loop" tkinter errors in FastAPI
+# uvicorn workers (which run in non-main threads).
+# ============================================================================
+import matplotlib
+matplotlib.use('Agg')
+
+# Prevent PIL from trying to use tkinter display
 import os
+os.environ['MPLBACKEND'] = 'Agg'
+
+# Disable PIL image display for headless environments
+try:
+    from PIL import ImageFile
+    ImageFile.LOAD_TRUNCATED_IMAGES = True
+except ImportError:
+    pass
+
+import sys
 from pathlib import Path
 
 # Ensure the project root (golf_optimized/) is on sys.path so all existing
