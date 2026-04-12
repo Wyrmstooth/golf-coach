@@ -91,6 +91,9 @@ def _run_analysis(
             output_dir=output_dir,
         )
 
+        logger.info(f"Analysis complete. Report keys: {list(report.keys()) if isinstance(report, dict) else 'not a dict'}")
+        logger.info(f"User ID: {user_id}, Video: {video_filename}")
+
         # Persist session for authenticated users
         if user_id is not None:
             try:
@@ -104,8 +107,9 @@ def _run_analysis(
                         video_filename=video_filename,
                         report=report,
                     )
-            except Exception:
-                pass  # Session save failure should not fail the analysis job
+                logger.info(f"✓ Session saved for user {user_id}")
+            except Exception as e:
+                logger.error(f"Failed to save session: {e}", exc_info=True)
 
     except Exception:
         job_store.update(
