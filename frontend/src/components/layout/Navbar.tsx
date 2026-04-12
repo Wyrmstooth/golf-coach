@@ -1,6 +1,8 @@
-import { Link, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Activity, Camera, Home } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { Activity, Camera, Home, LayoutDashboard, LogIn, LogOut, User } from "lucide-react";
+import { useState } from "react";
+import { useAuthStore } from "../../store/authStore";
 
 const navLinks = [
   { to: "/", label: "Home", icon: Home },
@@ -48,6 +50,16 @@ function GolfBallLogo() {
 
 export default function Navbar() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const user   = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  function handleLogout() {
+    logout();
+    setProfileOpen(false);
+    navigate("/");
+  }
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10">
@@ -82,6 +94,91 @@ export default function Navbar() {
               </Link>
             );
           })}
+
+          {/* Dashboard link when logged in */}
+          {user && (
+            <Link to="/dashboard">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  pathname === "/dashboard"
+                    ? "bg-golf-green/20 text-golf-green border border-golf-green/30"
+                    : "text-white/60 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <LayoutDashboard size={15} />
+                Dashboard
+              </motion.div>
+            </Link>
+          )}
+        </div>
+
+        {/* Auth */}
+        <div className="flex items-center gap-2">
+          {user ? (
+            <div className="relative">
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setProfileOpen((o) => !o)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl glass border border-white/10 hover:border-white/20 transition-all"
+              >
+                <div className="w-6 h-6 rounded-lg bg-golf-green/20 flex items-center justify-center">
+                  <span className="text-golf-green text-[10px] font-bold">
+                    {user.avatar_initials ?? user.display_name.slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+                <span className="text-sm text-white/70 font-medium max-w-[80px] truncate">
+                  {user.display_name.split(" ")[0]}
+                </span>
+              </motion.button>
+
+              <AnimatePresence>
+                {profileOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 4, scale: 0.97 }}
+                    className="absolute right-0 top-full mt-2 w-44 glass rounded-xl border border-white/10 py-1 z-50 shadow-xl"
+                  >
+                    <Link
+                      to="/profile"
+                      onClick={() => setProfileOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      <User size={13} /> Profile
+                    </Link>
+                    <Link
+                      to="/dashboard"
+                      onClick={() => setProfileOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      <LayoutDashboard size={13} /> Dashboard
+                    </Link>
+                    <div className="border-t border-white/8 my-1" />
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-white/5 transition-colors"
+                    >
+                      <LogOut size={13} /> Sign out
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <Link to="/login">
+              <motion.div
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-golf-green/15 text-golf-green border border-golf-green/25 hover:bg-golf-green/25 transition-all"
+              >
+                <LogIn size={14} />
+                Sign In
+              </motion.div>
+            </Link>
+          )}
         </div>
       </div>
     </nav>
