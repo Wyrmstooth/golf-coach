@@ -20,7 +20,8 @@ SECRET_KEY  = os.getenv("SECRET_KEY", "golf-coach-dev-secret-CHANGE-IN-PROD-abc1
 ALGORITHM   = "HS256"
 TOKEN_EXPIRE_DAYS = 7
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use argon2 for modern, secure password hashing (more robust than bcrypt)
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 # ── Password helpers ──────────────────────────────────────────────────────────
