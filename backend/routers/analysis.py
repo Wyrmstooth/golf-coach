@@ -132,6 +132,12 @@ async def analyze_video(
     Accept a multipart video upload, save it, kick off background analysis,
     and return the job_id for polling.
     """
+    logger.info(f"Analyze endpoint called. Current user: {current_user}")
+    if current_user:
+        logger.info(f"  User ID: {current_user.id}, Email: {current_user.email}")
+    else:
+        logger.info("  No user logged in (anonymous analysis)")
+    
     suffix = Path(file.filename or "video.mp4").suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
         raise HTTPException(
