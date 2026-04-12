@@ -7,6 +7,7 @@ import streamlit as st
 import cv2
 import numpy as np
 import mediapipe as mp
+import mediapipe_compat  # patches mp.solutions for MediaPipe 0.10.x  # noqa: F401
 from pathlib import Path
 import tempfile
 import time

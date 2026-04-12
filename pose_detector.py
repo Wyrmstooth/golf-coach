@@ -4,6 +4,7 @@ Real-time pose estimation using MediaPipe
 
 import cv2
 import mediapipe as mp
+import mediapipe_compat  # patches mp.solutions for MediaPipe 0.10.x  # noqa: F401
 import numpy as np
 from typing import Optional, Tuple, List
 import yaml
@@ -87,9 +88,9 @@ class PoseDetector:
         
         return np.array(landmarks)
     
-    def draw_pose(self, 
-                  frame: np.ndarray, 
-                  results, 
+    def draw_pose(self,
+                  frame: np.ndarray,
+                  results,
                   draw_landmarks: bool = True,
                   draw_connections: bool = True) -> np.ndarray:
         """
@@ -105,23 +106,12 @@ class PoseDetector:
             Frame with pose drawn
         """
         if results.pose_landmarks:
-            if draw_connections:
-                self.mp_drawing.draw_landmarks(
-                    frame,
-                    results.pose_landmarks,
-                    self.mp_pose.POSE_CONNECTIONS,
-                    landmark_drawing_spec=self.mp_drawing_styles.get_default_pose_landmarks_style()
-                )
-            
-            if draw_landmarks:
-                self.mp_drawing.draw_landmarks(
-                    frame,
-                    results.pose_landmarks,
-                    None,  # No connections, just landmarks
-                    landmark_drawing_spec=mp.solutions.drawing_utils.DrawingSpec(
-                        color=(0, 0, 255), thickness=2, circle_radius=3
-                    )
-                )
+            self.mp_drawing.draw_landmarks(
+                frame,
+                results.pose_landmarks,
+                self.mp_pose.POSE_CONNECTIONS if draw_connections else None,
+                landmark_drawing_spec=self.mp_drawing_styles.get_default_pose_landmarks_style()
+            )
         
         return frame
     

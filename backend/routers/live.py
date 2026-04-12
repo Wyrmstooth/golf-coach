@@ -2,7 +2,7 @@
 Live router – real-time address posture check and live swing recording.
 
 Endpoints:
-  WS   /api/live/address   Per-frame WebSocket: client → base64 JPEG → server → angles + corrections
+  WS   /api/live/address   Per-frame WebSocket: client → base64 JPEG → server → angles + corrections + annotated frame
   POST /api/live/swing     Accept browser-recorded video blob, run full analysis inline
 """
 from __future__ import annotations
@@ -14,10 +14,12 @@ import os
 import tempfile
 import traceback
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import cv2
+import mediapipe_compat  # patches mp.solutions for MediaPipe 0.10.x  # noqa: F401
+import mediapipe as mp
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
@@ -27,8 +29,29 @@ sys.path.insert(0, str(ROOT))
 
 router = APIRouter()
 
+# ── Module-level MediaPipe instances (avoid per-frame init overhead) ─────────
+# Creating a new Pose instance every frame is extremely expensive and causes
+# the "main thread is not in main loop" tkinter destructor crashes.
+_mp_pose = mp.solutions.pose
+_mp_drawing = mp.solutions.drawing_utils
+_mp_drawing_styles = mp.solutions.drawing_styles
+_pose_instance: Optional[Any] = None
 
-def _decode_frame(data_uri: str) -> np.ndarray | None:
+
+def _get_pose() -> Any:
+    """Lazy-init a single shared MediaPipe Pose instance."""
+    global _pose_instance
+    if _pose_instance is None:
+        _pose_instance = _mp_pose.Pose(
+            static_image_mode=False,
+            model_complexity=1,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5,
+        )
+    return _pose_instance
+
+
+def _decode_frame(data_uri: str) -> Optional[np.ndarray]:
     """Decode a base64 data-URI (image/jpeg or image/png) into a BGR numpy array."""
     try:
         if "," in data_uri:
@@ -41,45 +64,85 @@ def _decode_frame(data_uri: str) -> np.ndarray | None:
         return None
 
 
+def _angle_between(lm: Any, p1: int, p2: int, p3: int) -> float:
+    """Compute the angle (degrees) at joint p2 formed by points p1–p2–p3."""
+    a = np.array([lm[p1].x, lm[p1].y])
+    b = np.array([lm[p2].x, lm[p2].y])
+    c = np.array([lm[p3].x, lm[p3].y])
+    ba, bc = a - b, c - b
+    cosine = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-9)
+    return float(np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0))))
+
+
 def _check_address_posture_frame(frame: np.ndarray) -> Dict[str, Any]:
     """
-    Run MediaPipe Pose + AddressPoseCorrector on a single BGR frame.
-    Returns a structured dict of angles, corrections, and overall status.
+    Run MediaPipe Pose on a single BGR frame.
+    - Draws the full skeleton overlay onto a copy of the frame.
+    - Calculates spine angle, knee flex, and lead arm angle.
+    - Returns corrections, overall status, plus the annotated frame as base64 JPEG.
     """
-    import mediapipe as mp
-    from golf_coach_app import AddressPoseCorrector  # type: ignore
-
-    mp_pose = mp.solutions.pose
-    corrector = AddressPoseCorrector()
-
     result: Dict[str, Any] = {
         "status": "no_pose",
         "angles": {},
         "corrections": [],
         "overall": "DETECTING...",
+        "annotated_frame": None,
     }
 
-    with mp_pose.Pose(
-        static_image_mode=False,
-        model_complexity=1,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
-    ) as pose:
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = pose.process(rgb)
+    pose = _get_pose()
 
-        if not results.pose_landmarks:
-            return result
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    rgb.flags.writeable = False
+    pose_results = pose.process(rgb)
+    rgb.flags.writeable = True
 
-        lm = results.pose_landmarks.landmark
-        feedback = corrector.check_address_posture(lm)
+    if not pose_results.pose_landmarks:
+        return result
 
-        result["status"] = "ok"
-        result["angles"] = feedback.get("angles", {})
-        result["corrections"] = feedback.get("corrections", [])
-        result["overall"] = (
-            "GOOD ADDRESS" if not feedback.get("corrections") else "NEEDS ADJUSTMENT"
-        )
+    # ── Draw skeleton overlay ─────────────────────────────────────────────────
+    annotated = frame.copy()
+    _mp_drawing.draw_landmarks(
+        annotated,
+        pose_results.pose_landmarks,
+        _mp_pose.POSE_CONNECTIONS,
+        landmark_drawing_spec=_mp_drawing_styles.get_default_pose_landmarks_style(),
+    )
+    ok, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 78])
+    if ok:
+        result["annotated_frame"] = "data:image/jpeg;base64," + base64.b64encode(buf).decode()
+
+    # ── Calculate posture angles ──────────────────────────────────────────────
+    lm = pose_results.pose_landmarks.landmark
+    spine_angle = _angle_between(lm, 11, 23, 25)   # shoulder → hip → knee
+    left_knee   = _angle_between(lm, 23, 25, 27)
+    right_knee  = _angle_between(lm, 24, 26, 28)
+    left_arm    = _angle_between(lm, 11, 13, 15)
+    avg_knee    = (left_knee + right_knee) / 2
+
+    result["angles"] = {
+        "spine":    round(spine_angle, 1),
+        "knee":     round(avg_knee, 1),
+        "left_arm": round(left_arm, 1),
+    }
+
+    # ── Corrections ───────────────────────────────────────────────────────────
+    corrections: List[str] = []
+    if spine_angle > 165:
+        corrections.append("Stand more upright — too much forward tilt")
+    elif spine_angle < 150:
+        corrections.append("Bend more from the hips — not enough tilt")
+
+    if avg_knee > 170:
+        corrections.append("Bend your knees more — stay in an athletic stance")
+    elif avg_knee < 130:
+        corrections.append("Less knee bend — stance too deep")
+
+    if left_arm < 150:
+        corrections.append("Straighten your lead arm")
+
+    result["status"] = "ok"
+    result["corrections"] = corrections
+    result["overall"] = "GOOD ADDRESS" if not corrections else "NEEDS ADJUSTMENT"
 
     return result
 

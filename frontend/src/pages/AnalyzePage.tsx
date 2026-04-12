@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RotateCcw, Image, Target, AlertCircle, RefreshCw } from "lucide-react";
+import { RotateCcw, Image, Target, AlertCircle, RefreshCw, Clock, TrendingUp, Camera } from "lucide-react";
 
 import PageWrapper from "../components/layout/PageWrapper";
 import VideoDropzone from "../components/upload/VideoDropzone";
@@ -93,6 +93,10 @@ export default function AnalyzePage() {
   const plotUrl = jobId && plotFilename
     ? `/api/files/${jobId}/${plotFilename}`
     : null;
+
+  // Phase screenshots
+  const phaseScreenshots = report?.outputs?.phase_screenshots ?? {};
+  const screenshotEntries = Object.entries(phaseScreenshots).filter(([, path]) => path);
 
   return (
     <PageWrapper className="bg-golf-navy">
@@ -225,6 +229,7 @@ export default function AnalyzePage() {
                 <SwingScoreRing
                   score={report.fault_analysis.overall_score ?? 0}
                   quality={report.fault_analysis.swing_quality}
+                  faultSummary={report.fault_analysis.fault_details?.summary}
                 />
                 <div className="flex-1 space-y-4">
                   <div className="flex flex-wrap gap-3 items-center">
@@ -249,6 +254,55 @@ export default function AnalyzePage() {
                     </motion.button>
                   </div>
                 </div>
+              </div>
+
+              {/* Quick stats row */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  {
+                    icon: Target,
+                    label: "Faults Found",
+                    value: `${report.fault_analysis.fault_details?.summary?.total_faults ?? 0}`,
+                    sub: `${report.fault_analysis.fault_details?.summary?.critical_count ?? 0} critical`,
+                    color: "text-red-400",
+                  },
+                  {
+                    icon: TrendingUp,
+                    label: "Swing Score",
+                    value: `${report.fault_analysis.overall_score ?? 0}/100`,
+                    sub: report.fault_analysis.swing_quality,
+                    color: "text-golf-green",
+                  },
+                  {
+                    icon: Clock,
+                    label: "Phases Analyzed",
+                    value: `${Object.keys(report.phase_ranges).length}`,
+                    sub: `${Object.values(report.phase_ranges).flat().reduce((a, b) => Math.max(a, b), 0)} frames`,
+                    color: "text-blue-400",
+                  },
+                  {
+                    icon: Camera,
+                    label: "Tracking",
+                    value: report.ball_tracking?.enabled ? "Active" : "ML Fallback",
+                    sub: report.ball_tracking?.status?.replace("_", " ") ?? "N/A",
+                    color: "text-amber-400",
+                  },
+                ].map((stat, i) => (
+                  <motion.div
+                    key={stat.label}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.08 }}
+                    className="glass rounded-xl p-4 border border-white/5"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <stat.icon size={14} className="text-white/30" />
+                      <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">{stat.label}</span>
+                    </div>
+                    <div className={`font-display font-bold text-lg ${stat.color}`}>{stat.value}</div>
+                    <div className="text-[10px] text-white/30 mt-0.5">{stat.sub}</div>
+                  </motion.div>
+                ))}
               </div>
 
               {/* Phase timeline */}
@@ -300,6 +354,39 @@ export default function AnalyzePage() {
                 fps={30}
                 ballTracking={report.ball_tracking}
               />
+
+              {/* Phase screenshots */}
+              {screenshotEntries.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="glass rounded-2xl p-6 space-y-4"
+                >
+                  <div className="flex items-center gap-2">
+                    <Camera size={14} className="text-white/40" />
+                    <span className="text-sm font-semibold text-white/60 uppercase tracking-widest">Phase Snapshots</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {screenshotEntries.map(([phase, path]) => {
+                      const filename = path.split(/[\\/]/).pop();
+                      const url = jobId && filename ? `/api/files/${jobId}/${filename}` : null;
+                      if (!url) return null;
+                      return (
+                        <div key={phase} className="space-y-1.5">
+                          <img
+                            src={url}
+                            alt={`${phase} screenshot`}
+                            className="w-full aspect-video object-cover rounded-lg border border-white/10"
+                          />
+                          <span className="text-[10px] text-white/40 font-semibold uppercase tracking-wide block text-center">
+                            {phase.replace("_", " ")}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
 
               {/* Plot images */}
               <div className="grid md:grid-cols-2 gap-6">

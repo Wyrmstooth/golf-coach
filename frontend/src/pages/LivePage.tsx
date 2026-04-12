@@ -14,7 +14,7 @@ export default function LivePage() {
   const [tab, setTab] = useState<Tab>("address");
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const { feedback, connected, connect, disconnect, sendFrame } = useLiveAddress();
+  const { feedback, annotatedFrame, poseHoldMs, connected, connect, disconnect, sendFrame } = useLiveAddress();
 
   const startCamera = async () => {
     try {
@@ -123,6 +123,7 @@ export default function LivePage() {
               mirrored
               onFrame={tab === "address" && connected ? sendFrame : undefined}
               frameInterval={200}
+              annotatedFrame={tab === "address" ? annotatedFrame : null}
             />
 
             {tab === "swing" && (
@@ -137,7 +138,7 @@ export default function LivePage() {
                 <h3 className="text-sm font-semibold text-white/60 uppercase tracking-widest">
                   Real-time Feedback
                 </h3>
-                <AddressMetrics feedback={feedback} connected={connected} />
+                <AddressMetrics feedback={feedback} connected={connected} poseHoldMs={poseHoldMs} />
                 <div className="glass rounded-xl p-4 text-xs text-white/40 space-y-1 leading-relaxed">
                   <p className="font-semibold text-white/60">How to use:</p>
                   <p>1. Start your camera</p>

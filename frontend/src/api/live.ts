@@ -3,6 +3,8 @@ export interface AddressFeedback {
   angles: Record<string, number>;
   corrections: string[];
   overall: string;
+  /** Base64 JPEG with MediaPipe skeleton drawn – present when status === "ok" */
+  annotated_frame?: string;
 }
 
 export class LiveAddressSocket {

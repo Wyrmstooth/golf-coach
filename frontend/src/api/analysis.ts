@@ -13,6 +13,7 @@ export interface FaultDetail {
   title: string;
   description: string;
   fix: string;
+  drill?: string;
   feature: string;
   value: number;
   expected: string;
@@ -91,4 +92,23 @@ export async function getReport(jobId: string): Promise<AnalysisReport> {
 
 export function getFileUrl(jobId: string, filename: string): string {
   return `/api/files/${jobId}/${filename}`;
+}
+
+export interface JobSummary {
+  job_id: string;
+  status: string;
+  progress: number;
+  created_at: number | null;
+  video_path: string | null;
+  swing_quality: string | null;
+  overall_score: number | null;
+}
+
+export async function getHistory(): Promise<JobSummary[]> {
+  const { data } = await client.get<JobSummary[]>("/history");
+  return data;
+}
+
+export async function deleteJob(jobId: string): Promise<void> {
+  await client.delete(`/jobs/${jobId}`);
 }

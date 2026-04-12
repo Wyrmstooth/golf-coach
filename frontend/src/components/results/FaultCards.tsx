@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, ChevronDown, ChevronUp, Target, Info } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, Target, Info, Dumbbell, BarChart3 } from "lucide-react";
 import type { FaultDetail, FaultDetails } from "../../api/analysis";
 
 interface Props {
@@ -16,6 +16,7 @@ const SEVERITY_CONFIG = {
     badge: "bg-red-500/20 text-red-400",
     icon: "text-red-400",
     headerBg: "bg-red-500/15",
+    barColor: "#ef4444",
   },
   major: {
     label: "Major",
@@ -25,6 +26,7 @@ const SEVERITY_CONFIG = {
     badge: "bg-orange-500/20 text-orange-400",
     icon: "text-orange-400",
     headerBg: "bg-orange-500/15",
+    barColor: "#f97316",
   },
   minor: {
     label: "Minor",
@@ -34,6 +36,7 @@ const SEVERITY_CONFIG = {
     badge: "bg-yellow-500/20 text-yellow-400",
     icon: "text-yellow-400",
     headerBg: "bg-yellow-500/15",
+    barColor: "#eab308",
   },
 };
 
@@ -45,6 +48,43 @@ const PHASE_COLORS: Record<string, string> = {
   IMPACT: "bg-red-500/20 text-red-300",
   FOLLOW_THROUGH: "bg-purple-500/20 text-purple-300",
 };
+
+/** Visual gauge showing measured value vs expected range */
+function DeviationGauge({ value, expected, color }: { value: number; expected: string; color: string }) {
+  // Parse expected range like "-55° to -68°" or "100° to 160°"
+  const match = expected.match(/([-\d.]+)[°]?\s*to\s*([-\d.]+)/);
+  if (!match) return null;
+  const lo = parseFloat(match[1]);
+  const hi = parseFloat(match[2]);
+  const min = Math.min(lo, hi) - Math.abs(hi - lo) * 0.5;
+  const max = Math.max(lo, hi) + Math.abs(hi - lo) * 0.5;
+  const range = max - min || 1;
+  const goodLeft = ((Math.min(lo, hi) - min) / range) * 100;
+  const goodWidth = (Math.abs(hi - lo) / range) * 100;
+  const valuePos = Math.max(0, Math.min(100, ((value - min) / range) * 100));
+
+  return (
+    <div className="space-y-1">
+      <div className="relative h-2 bg-white/10 rounded-full overflow-visible">
+        {/* Good range */}
+        <div
+          className="absolute top-0 h-full bg-golf-green/30 rounded-full"
+          style={{ left: `${goodLeft}%`, width: `${goodWidth}%` }}
+        />
+        {/* Value marker */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow-md"
+          style={{ left: `${valuePos}%`, backgroundColor: color, transform: `translate(-50%, -50%)` }}
+        />
+      </div>
+      <div className="flex justify-between text-[9px] text-white/25">
+        <span>{min.toFixed(0)}°</span>
+        <span className="text-golf-green/60">Good: {expected}</span>
+        <span>{max.toFixed(0)}°</span>
+      </div>
+    </div>
+  );
+}
 
 function FaultCard({ fault, index }: { fault: FaultDetail; index: number }) {
   const [expanded, setExpanded] = useState(fault.severity === "critical");
@@ -107,14 +147,28 @@ function FaultCard({ fault, index }: { fault: FaultDetail; index: number }) {
                 </div>
               </div>
 
+              {/* Deviation gauge */}
+              <DeviationGauge value={fault.value} expected={fault.expected} color={cfg.barColor} />
+
               {/* Fix */}
               <div className="flex items-start gap-2 glass-green rounded-lg px-3 py-2.5">
                 <Target size={13} className="text-golf-green mt-0.5 flex-shrink-0" />
                 <div>
-                  <div className="text-[10px] text-golf-green/70 font-semibold uppercase tracking-wider mb-0.5">Fix</div>
+                  <div className="text-[10px] text-golf-green/70 font-semibold uppercase tracking-wider mb-0.5">How to Fix</div>
                   <p className="text-xs text-white/70">{fault.fix}</p>
                 </div>
               </div>
+
+              {/* Drill suggestion */}
+              {fault.drill && (
+                <div className="flex items-start gap-2 rounded-lg px-3 py-2.5 bg-blue-500/10 border border-blue-500/20">
+                  <Dumbbell size={13} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="text-[10px] text-blue-400/70 font-semibold uppercase tracking-wider mb-0.5">Practice Drill</div>
+                    <p className="text-xs text-white/70">{fault.drill}</p>
+                  </div>
+                </div>
+              )}
 
               {/* Feature key */}
               <div className="flex items-center gap-1.5">
@@ -139,9 +193,19 @@ export default function FaultCards({ faultDetails }: Props) {
         <div className="text-4xl mb-3">✅</div>
         <h3 className="font-display font-bold text-lg text-golf-green">Excellent Swing!</h3>
         <p className="text-white/50 text-sm mt-1">No faults detected across all 6 phases.</p>
+        <p className="text-white/30 text-xs mt-3">Your technique matches professional-level biomechanics.</p>
       </div>
     );
   }
+
+  // Calculate a quick priority ranking for top issues
+  const topIssues = faultDetails.faults
+    .slice()
+    .sort((a, b) => {
+      const sevOrder = { critical: 0, major: 1, minor: 2 };
+      return (sevOrder[a.severity] ?? 3) - (sevOrder[b.severity] ?? 3);
+    })
+    .slice(0, 3);
 
   return (
     <div className="space-y-6">
@@ -161,6 +225,29 @@ export default function FaultCards({ faultDetails }: Props) {
           );
         })}
       </div>
+
+      {/* Top priority ribbon */}
+      {topIssues.length > 0 && (
+        <div className="glass rounded-xl p-4 border border-white/10 space-y-2">
+          <div className="flex items-center gap-2 mb-2">
+            <BarChart3 size={14} className="text-golf-gold" />
+            <span className="text-xs font-bold text-golf-gold uppercase tracking-wider">Priority Focus Areas</span>
+          </div>
+          <div className="space-y-1.5">
+            {topIssues.map((fault, i) => {
+              const cfg = SEVERITY_CONFIG[fault.severity] ?? SEVERITY_CONFIG.minor;
+              return (
+                <div key={`${fault.phase}-${fault.title}`} className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-white/30 w-4">{i + 1}.</span>
+                  <span className="text-xs">{cfg.emoji}</span>
+                  <span className="text-xs text-white/80 font-medium">{fault.title}</span>
+                  <span className="text-[10px] text-white/30">({fault.phase.replace("_", " ")})</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Fault groups */}
       {(["critical", "major", "minor"] as const).map((sev) => {
