@@ -36,6 +36,14 @@ conda activate golfpose
 
 ## Step 3 — Install Python dependencies
 
+Install backend API packages (FastAPI, auth, database):
+
+```powershell
+pip install -r backend/requirements_api.txt
+```
+
+Install core ML & video processing packages:
+
 ```powershell
 pip install -r requirements.txt
 ```
@@ -43,17 +51,23 @@ pip install -r requirements.txt
 **Verify key packages:**
 
 ```powershell
-python -c "import mediapipe as mp; print('MediaPipe:', mp.__version__)"
-python -c "import fastapi; print('FastAPI OK')"
-python -c "import torch; print('PyTorch:', torch.__version__)"
+python -c "import mediapipe as mp; print('✓ MediaPipe:', mp.__version__)"
+python -c "import fastapi; print('✓ FastAPI installed')"
+python -c "import sqlalchemy; print('✓ SQLAlchemy:', sqlalchemy.__version__)"
+python -c "import torch; print('✓ PyTorch:', torch.__version__)"
+python -c "import passlib; print('✓ Passlib installed')"
 ```
 
 Expected output:
 ```
-MediaPipe: 0.10.21
-FastAPI OK
-PyTorch: 2.x.x
+✓ MediaPipe: 0.10.33
+✓ FastAPI installed
+✓ SQLAlchemy: 2.x.x
+✓ PyTorch: 2.x.x
+✓ Passlib installed
 ```
+
+> ⚠️ **Note:** Database file (`golf.db`) will be auto-created on first backend startup in the project root directory.
 
 ---
 
@@ -107,33 +121,156 @@ VITE v8.x.x  ready in xxxx ms
 
 ---
 
-## Step 6 — Open the app
+## Step 6 — Configure Authentication (First Time)
 
-Open your browser at **http://localhost:5173**
+On first backend startup, the app automatically:
+- Creates `golf.db` SQLite database in the project root
+- Initializes `user` and `swing_session` tables
+- Sets up JWT secret key (hardcoded for dev; change in production)
+
+No manual configuration needed — the database is created automatically.
 
 ---
 
-## Common Issues on Windows
+## Step 7 — Open the app
 
-### ❌ `OSError: [WinError 6] The handle is invalid` during analysis
-**Cause:** tqdm writing to an invalid stderr handle inside uvicorn's thread.  
-**Status:** Already fixed — `_safe_tqdm()` in `video_processor.py` handles this.
+Open your browser at **http://localhost:5173**
 
-### ❌ Analysis stuck at 88% (annotated video generation hangs)
-**Cause:** `avc1` (libopenh264) selected as codec but has wrong library version, causing `out.release()` to deadlock.  
-**Status:** Already fixed — `mp4v` codec is now tried first in `video_processor.py`.
+### First-Time User Flow
 
-### ❌ `module 'mediapipe' has no attribute 'solutions'`
-The wrong Python environment is active.
+1. **Click** "Sign In" → "Create Account"
+2. **Register** with:
+   - Email: `your@email.com`
+   - Password: `SecurePassword123` (min 8 chars)
+   - Display Name: `Your Name`
+   - Handicap: (optional)
+3. **Login** with email/password
+4. **Browse** to "Analyze Swing" and upload a golf video
+5. **View** results on "Dashboard" after analysis completes
+
+---
+
+## Step 8 — Verify Database Setup
+
+To confirm the database is working:
+
 ```powershell
-conda activate golfpose
-python -c "import mediapipe as mp; print(hasattr(mp, 'solutions'))"
-# Must print: True
+# Check database exists
+Test-Path golf.db
+
+# List tables (requires sqlite3 tools, optional)
+sqlite3 golf.db "SELECT name FROM sqlite_master WHERE type='table';"
+
+# Expected output:
+# user
+# swing_session
 ```
 
-### ❌ `ModuleNotFoundError` on backend start
+---
+
+## Authentication & Database
+
+### JWT Tokens
+- **Expiry:** 7 days
+- **Storage:** localStorage (survives page refreshes)
+- **Sent as:** `Authorization: Bearer {token}` header with every API request
+
+### Database Location
+```
+c:\Users\YourUsername\OneDrive\Desktop\golf-dashboard\golf.db
+```
+
+### User Data Stored
+- Email, hashed password (argon2), display name, handicap, avatar
+- All passwords hashed with argon2-cffi (never stored in plain text)
+### First-Time Setup
+```powershell
+# Clone repo
+git clone https://github.com/zainulabidin776/golf-dashboard.git
+cd golf-dashboard
+
+# Create environment
+conda create -n golfpose python=3.11 -y
+conda activate golfpose
+
+# Install dependencies (API first, then ML)
+pip install -r backend/requirements_api.txt
+pip install -r requirements.txt
+
+# Frontend
+cd frontend && npm install && cd ..
+
+# Start (two terminals or one-click)
+# Option 1: powershell -ExecutionPolicy Bypass -File start_app.ps1
+# Option 2: Terminal 1: python -m uvicorn backend.main:app --port 8000 --reload
+#           Terminal 2: cd frontend && npm run dev
+```
+
+### Every Session After
 ```powershell
 conda activate golfpose
+
+# Option 1: One-click (recommended)
+powershell -ExecutionPolicy Bypass -File start_app.ps1
+
+# Option 2: Manual (two terminals)
+# Terminal 1:
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2:
+cd frontend && npm run dev
+
+# App at http://localhost:5173
+```
+
+---
+
+## Dependency Summary
+
+### Backend API (`backend/requirements_api.txt`)
+- `fastapi` — Web framework
+- `uvicorn` — ASGI server
+- `sqlalchemy>=2.0.0` — Database ORM
+- `python-jose` — JWT tokens
+- `passlib[argon2]` — Password hashing
+- `argon2-cffi` — Argon2 algorithm
+- `email-validator` — Email validation
+
+### Core ML (`requirements.txt`)
+- `mediapipe>=0.10.33` — Pose detection
+- `opencv-python` — Video processing
+- `numpy`, `scipy`, `pandas` — Data processing
+- `torch`, `torchvision` — ML models
+- `ultralytics>=8.0.0` — YOLO ball detection
+- `matplotlib` — Visualization
+- `pillow` — Image processing
+
+### Frontend (`frontend/package.json`)
+- `react@19` — UI framework
+- `vite@8` — Build tool
+- `typescript` — Type safety
+- `zustand` — State management
+- `axios` — HTTP client
+- `react-router-dom@7` — Routing
+- `framer-motion` — Animations
+- `recharts` — Charts
+- `tailwindcss` — CSS framework
+
+---
+
+## Environment Details
+
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| Python | 3.11 | Backend & ML |
+| Conda | Latest | Env management |
+| mediapipe | 0.10.33 | Pose landmarks |
+| PyTorch | 2.0+ | ML inference |
+| FastAPI | 0.110+ | REST API |
+| SQLAlchemy | 2.0+ | Database ORM |
+| Node.js | 18+ | Frontend build |
+| React | 19 | UI library |
+| Vite | 8.x | Dev serverte golfpose
 pip install -r requirements.txt
 ```
 

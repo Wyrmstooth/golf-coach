@@ -53,6 +53,14 @@ conda activate golfpose
 
 ## Step 3 — Install Python dependencies
 
+Install backend API packages (FastAPI, auth, database):
+
+```bash
+pip install -r backend/requirements_api.txt
+```
+
+Install core ML & video processing packages:
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -60,22 +68,33 @@ pip install -r requirements.txt
 **Verify key packages:**
 
 ```bash
-python -c "import mediapipe as mp; print('MediaPipe:', mp.__version__)"
-python -c "import fastapi; print('FastAPI OK')"
-python -c "import torch; print('PyTorch:', torch.__version__)"
+python -c "import mediapipe as mp; print('✓ MediaPipe:', mp.__version__)"
+python -c "import fastapi; print('✓ FastAPI installed')"
+python -c "import sqlalchemy; print('✓ SQLAlchemy:', sqlalchemy.__version__)"
+python -c "import torch; print('✓ PyTorch:', torch.__version__)"
+python -c "import passlib; print('✓ Passlib installed')"
 ```
 
 Expected output:
 ```
-MediaPipe: 0.10.21
-FastAPI OK
-PyTorch: 2.x.x
+✓ MediaPipe: 0.10.33
+✓ FastAPI installed
+✓ SQLAlchemy: 2.x.x
+✓ PyTorch: 2.x.x
+✓ Passlib installed
 ```
 
-> **Note:** On Linux, MediaPipe requires `libGL`. If you see `libGL.so not found`:
-> ```bash
-> sudo apt install -y libgl1-mesa-glx libglib2.0-0
-> ```
+**Linux-specific dependencies:**
+
+```bash
+# Required for MediaPipe on Linux
+sudo apt install -y libgl1-mesa-glx libglib2.0-0 libxext6 libsm6
+
+# Optional but recommended
+sudo apt install -y sqlite3  # For database inspection
+```
+
+> ⚠️ **Note:** Database file (`golf.db`) will be auto-created on first backend startup in the project root directory.
 
 ---
 
@@ -128,9 +147,74 @@ VITE v8.x.x  ready in xxxx ms
 
 ---
 
-## Step 6 — Open the app
+## Step 6 — Configure Authentication (First Time)
+
+On first backend startup, the app automatically:
+- Creates `golf.db` SQLite database in the project root
+- Initializes `user` and `swing_session` tables
+- Sets up JWT secret key (hardcoded for dev; change in production)
+
+No manual configuration needed — the database is created automatically.
+
+---
+
+## Step 7 — Open the app
 
 Open your browser at **http://localhost:5173**
+
+### First-Time User Flow
+
+1. **Click** "Sign In" → "Create Account"
+2. **Register** with:
+   - Email: `your@email.com`
+   - Password: `SecurePassword123` (min 8 chars)
+   - Display Name: `Your Name`
+   - Handicap: (optional)
+3. **Login** with email/password
+4. **Browse** to "Analyze Swing" and upload a golf video
+5. **View** results on "Dashboard" after analysis completes
+
+---
+
+## Step 8 — Verify Database Setup
+
+To confirm the database is working:
+
+```bash
+# Check database exists
+test -f golf.db && echo "✓ Database exists" || echo "✗ Database not found"
+
+# List tables (requires sqlite3)
+sqlite3 golf.db "SELECT name FROM sqlite_master WHERE type='table';"
+
+# Expected output:
+# user
+# swing_session
+```
+
+---
+
+## Authentication & Database
+
+### JWT Tokens
+- **Expiry:** 7 days
+- **Storage:** localStorage (survives page refreshes)
+- **Sent as:** `Authorization: Bearer {token}` header with every API request
+
+### Database Location
+```
+~/golf-dashboard/golf.db
+# or
+/home/username/path/to/golf-dashboard/golf.db
+```
+
+### User Data Stored
+- Email, hashed password (argon2), display name, handicap, avatar
+- All passwords hashed with argon2-cffi (never stored in plain text)
+
+### Swing Session Data Stored
+- Job ID, analysis report (JSON), score, swing quality, detected faults
+- Linked to user via `user_id` foreign key
 
 ---
 
@@ -234,18 +318,36 @@ For live webcam features, a display is required. Analysis-only mode works headle
 
 ## Quick Reference
 
+### First-Time Setup
 ```bash
-# One-time setup
-conda create -n golfpose python=3.10 -y
+# Clone repo
+git clone https://github.com/zainulabidin776/golf-dashboard.git
+cd golf-dashboard
+
+# Create environment
+conda create -n golfpose python=3.11 -y
 conda activate golfpose
+
+# Install dependencies (API first, then ML)
+pip install -r backend/requirements_api.txt
 pip install -r requirements.txt
+
+# Frontend
 cd frontend && npm install && cd ..
 
-# Every session — Terminal 1 (backend)
+# Start (two terminals)
+# Terminal 1: python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+# Terminal 2: cd frontend && npm run dev
+```
+
+### Every Session After
+```bash
 conda activate golfpose
+
+# Terminal 1 (Backend)
 python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
-# Every session — Terminal 2 (frontend)
+# Terminal 2 (Frontend)
 cd frontend && npm run dev
 
 # App at http://localhost:5173
@@ -253,16 +355,49 @@ cd frontend && npm run dev
 
 ---
 
+## Dependency Summary
+
+### Backend API (`backend/requirements_api.txt`)
+- `fastapi` — Web framework
+- `uvicorn` — ASGI server
+- `sqlalchemy>=2.0.0` — Database ORM
+- `python-jose` — JWT tokens
+- `passlib[argon2]` — Password hashing
+- `argon2-cffi` — Argon2 algorithm
+- `email-validator` — Email validation
+
+### Core ML (`requirements.txt`)
+- `mediapipe>=0.10.33` — Pose detection
+- `opencv-python` — Video processing
+- `numpy`, `scipy`, `pandas` — Data processing
+- `torch`, `torchvision` — ML models
+- `ultralytics>=8.0.0` — YOLO ball detection
+- `matplotlib` — Visualization
+- `pillow` — Image processing
+
+### Frontend (`frontend/package.json`)
+- `react@19` — UI framework
+- `vite@8` — Build tool
+- `typescript` — Type safety
+- `zustand` — State management
+- `axios` — HTTP client
+- `react-router-dom@7` — Routing
+- `framer-motion` — Animations
+- `recharts` — Charts
+- `tailwindcss` — CSS framework
+
+---
+
 ## Environment Details
 
-| Component | Version |
-|-----------|---------|
-| Python | 3.10 (via conda `golfpose` env) |
-| mediapipe | 0.10.21 (pinned — provides `mp.solutions`) |
-| torch | 2.0+ |
-| ultralytics | 8.0+ (YOLOv8 for ball detection) |
-| fastapi | 0.115+ |
-| uvicorn | latest |
-| Node.js | 18+ |
-| React | 19 |
-| Vite | 8.x |
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| Python | 3.11 | Backend & ML |
+| Conda | Latest | Env management |
+| mediapipe | 0.10.33 | Pose landmarks |
+| PyTorch | 2.0+ | ML inference |
+| FastAPI | 0.110+ | REST API |
+| SQLAlchemy | 2.0+ | Database ORM |
+| Node.js | 18+ | Frontend build |
+| React | 19 | UI library |
+| Vite | 8.x | Dev server |

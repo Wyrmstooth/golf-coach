@@ -1,9 +1,30 @@
-fastapi>=0.110.0
-uvicorn[standard]>=0.29.0
-python-multipart>=0.0.9
-websockets>=12.0
-aiofiles>=23.2.1
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
-sqlalchemy>=2.0.0
-email-validator>=2.0.0
+# GolfCoach AI — Backend API Dependencies
+# FastAPI, authentication, database, and web server packages
+# Install: pip install -r backend/requirements_api.txt
+
+# === Web Framework & Server ===
+fastapi>=0.110.0,<0.120.0
+uvicorn[standard]>=0.29.0,<0.30.0
+
+# === ASGI & WebServer Utils ===
+python-multipart>=0.0.9,<0.1.0
+aiofiles>=23.2.1,<24.0.0
+websockets>=12.0,<13.0.0
+
+# === Authentication & Security ===
+# JWT token creation and verification
+python-jose[cryptography]>=3.3.0,<4.0.0
+
+# Password hashing with argon2 (more secure than bcrypt)
+passlib[argon2]>=1.7.4,<2.0.0
+argon2-cffi>=23.1.0,<24.0.0
+
+# === Database (SQLAlchemy ORM) ===
+sqlalchemy>=2.0.0,<3.0.0
+
+# === Validation ===
+email-validator>=2.0.0,<3.0.0
+pydantic>=2.0.0,<3.0.0
+
+# === HTTP Client (optional, for internal service calls) ===
+httpx>=0.25.0,<0.27.0
