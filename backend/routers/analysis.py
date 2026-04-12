@@ -15,12 +15,19 @@ import sys
 import uuid
 import tempfile
 import traceback
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
+
+from backend.auth import get_optional_user
+from backend.database import get_db
+from sqlalchemy.orm import Session
+
+logger = logging.getLogger("golfcoach")
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
@@ -47,7 +54,13 @@ ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 
 
-def _run_analysis(job_id: str, video_path: str, output_dir: str) -> None:
+def _run_analysis(
+    job_id: str,
+    video_path: str,
+    output_dir: str,
+    user_id: int | None = None,
+    video_filename: str = "",
+) -> None:
     """
     Blocking analysis function executed in a thread-pool worker.
     Imports MLSwingAnalyzer here to avoid loading heavy models on startup.
@@ -80,6 +93,27 @@ def _run_analysis(job_id: str, video_path: str, output_dir: str) -> None:
             report=report,
             output_dir=output_dir,
         )
+
+        logger.info(f"Analysis complete. Report keys: {list(report.keys()) if isinstance(report, dict) else 'not a dict'}")
+        logger.info(f"User ID: {user_id}, Video: {video_filename}")
+
+        # Persist session for authenticated users
+        if user_id is not None:
+            try:
+                from backend.database import SessionLocal
+                from backend.routers.sessions import save_session_for_user
+                with SessionLocal() as db:
+                    save_session_for_user(
+                        db,
+                        user_id=user_id,
+                        job_id=job_id,
+                        video_filename=video_filename,
+                        report=report,
+                    )
+                logger.info(f"✓ Session saved for user {user_id}")
+            except Exception as e:
+                logger.error(f"Failed to save session: {e}", exc_info=True)
+
     except Exception:
         job_store.update(
             job_id,
@@ -90,11 +124,20 @@ def _run_analysis(job_id: str, video_path: str, output_dir: str) -> None:
 
 
 @router.post("/analyze")
-async def analyze_video(file: UploadFile = File(...)) -> Dict[str, str]:
+async def analyze_video(
+    file: UploadFile = File(...),
+    current_user=Depends(get_optional_user),
+) -> Dict[str, str]:
     """
     Accept a multipart video upload, save it, kick off background analysis,
     and return the job_id for polling.
     """
+    logger.info(f"Analyze endpoint called. Current user: {current_user}")
+    if current_user:
+        logger.info(f"  User ID: {current_user.id}, Email: {current_user.email}")
+    else:
+        logger.info("  No user logged in (anonymous analysis)")
+    
     suffix = Path(file.filename or "video.mp4").suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -122,7 +165,15 @@ async def analyze_video(file: UploadFile = File(...)) -> Dict[str, str]:
     job_store.update(job_id, output_dir=output_dir)
 
     # Submit to thread pool (non-blocking for the event loop)
-    executor.submit(_run_analysis, job_id, video_path, output_dir)
+    user_id = current_user.id if current_user else None
+    executor.submit(
+        _run_analysis,
+        job_id,
+        video_path,
+        output_dir,
+        user_id,
+        file.filename or "",
+    )
 
     return {"job_id": job_id}
 

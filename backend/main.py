@@ -38,6 +38,9 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.routers import analysis as analysis_router
 from backend.routers import live as live_router
+from backend.routers import auth as auth_router
+from backend.routers import sessions as sessions_router
+from backend.database import init_db
 
 import logging
 import time
@@ -50,6 +53,11 @@ app = FastAPI(
     description="REST + WebSocket API that wraps the GolfCoach Python analysis pipeline.",
     version="2.0.0",
 )
+
+# Initialise SQLite database tables on startup
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 # Allow the React dev server (and production build) to call us
 app.add_middleware(
@@ -72,6 +80,8 @@ app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
 
 app.include_router(analysis_router.router, prefix="/api")
 app.include_router(live_router.router, prefix="/api")
+app.include_router(auth_router.router, prefix="/api")
+app.include_router(sessions_router.router, prefix="/api")
 
 
 @app.middleware("http")
