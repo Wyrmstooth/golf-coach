@@ -14,17 +14,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.routers import analysis as analysis_router
 from backend.routers import live as live_router
 
+import logging
+import time
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("golfcoach")
+
 app = FastAPI(
     title="GolfCoach API",
     description="REST + WebSocket API that wraps the GolfCoach Python analysis pipeline.",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 # Allow the React dev server (and production build) to call us
@@ -50,6 +56,24 @@ app.include_router(analysis_router.router, prefix="/api")
 app.include_router(live_router.router, prefix="/api")
 
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    duration = time.time() - start
+    if duration > 1.0:  # Only log slow requests
+        logger.info(f"{request.method} {request.url.path} → {response.status_code} ({duration:.2f}s)")
+    return response
+
+
 @app.get("/api/health")
 async def health() -> dict:
-    return {"status": "ok", "version": "1.0.0"}
+    from backend.job_store import job_store
+    jobs = job_store.list_jobs()
+    running = sum(1 for j in jobs if j["status"] == "running")
+    return {
+        "status": "ok",
+        "version": "2.0.0",
+        "active_jobs": running,
+        "total_jobs": len(jobs),
+    }

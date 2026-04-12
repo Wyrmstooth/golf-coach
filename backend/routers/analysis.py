@@ -106,13 +106,17 @@ async def analyze_video(file: UploadFile = File(...)) -> Dict[str, str]:
     output_dir = str(ROOT / "output" / job_id)
     os.makedirs(output_dir, exist_ok=True)
 
-    # Save uploaded file
+    # Save uploaded file with streaming to avoid loading full file into memory
     video_path = os.path.join(output_dir, f"input{suffix}")
+    total_size = 0
     with open(video_path, "wb") as f:
-        content = await file.read()
-        if len(content) > MAX_FILE_SIZE:
-            raise HTTPException(status_code=413, detail="File too large (max 500 MB).")
-        f.write(content)
+        while chunk := await file.read(1024 * 1024):  # 1MB chunks
+            total_size += len(chunk)
+            if total_size > MAX_FILE_SIZE:
+                f.close()
+                os.remove(video_path)
+                raise HTTPException(status_code=413, detail="File too large (max 500 MB).")
+            f.write(chunk)
 
     job_store.create(job_id, video_path)
     job_store.update(job_id, output_dir=output_dir)
@@ -161,7 +165,11 @@ async def get_file(job_id: str, filename: str) -> FileResponse:
     if not output_dir:
         raise HTTPException(status_code=404, detail="No output directory for this job.")
 
-    file_path = Path(output_dir) / filename
+    # SECURITY: Prevent path traversal attacks
+    safe_dir = Path(output_dir).resolve()
+    file_path = (safe_dir / filename).resolve()
+    if not str(file_path).startswith(str(safe_dir)):
+        raise HTTPException(status_code=400, detail="Invalid filename.")
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail=f"File '{filename}' not found.")
 
@@ -176,3 +184,27 @@ async def get_file(job_id: str, filename: str) -> FileResponse:
     }
     media_type = media_types.get(ext, "application/octet-stream")
     return FileResponse(str(file_path), media_type=media_type, filename=filename)
+
+
+@router.get("/history")
+async def get_history() -> list:
+    """Return a summary of all analysis jobs (most recent first)."""
+    return job_store.list_jobs()
+
+
+@router.delete("/jobs/{job_id}")
+async def delete_job(job_id: str) -> Dict[str, str]:
+    """Delete a completed job and its output files."""
+    job = job_store.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if job["status"] == "running":
+        raise HTTPException(status_code=409, detail="Cannot delete a running job.")
+    output_dir = job.get("output_dir")
+    if output_dir:
+        import shutil
+        shutil.rmtree(output_dir, ignore_errors=True)
+    # Remove from store
+    with job_store._lock:
+        job_store._store.pop(job_id, None)
+    return {"detail": "Job deleted."}

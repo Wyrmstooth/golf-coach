@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 interface Props {
   score: number; // 0–100
   quality: string;
+  faultSummary?: { critical_count: number; major_count: number; minor_count: number; total_faults: number };
 }
 
 function getColor(score: number): string {
@@ -19,7 +20,15 @@ function getLabel(quality: string): { bg: string; text: string } {
   return { bg: "bg-red-500/20", text: "text-red-400" };
 }
 
-export default function SwingScoreRing({ score, quality }: Props) {
+function getTip(score: number): string {
+  if (score >= 85) return "Tour-level mechanics. Minor tweaks can get you to elite.";
+  if (score >= 70) return "Strong fundamentals. Focus on the critical faults listed below.";
+  if (score >= 50) return "Solid base with some key issues. Work on one fault at a time.";
+  if (score >= 30) return "Several significant faults detected. Consider a lesson to build correct patterns.";
+  return "Major swing rebuilding needed. Start with address posture and grip fundamentals.";
+}
+
+export default function SwingScoreRing({ score, quality, faultSummary }: Props) {
   const [displayed, setDisplayed] = useState(0);
   const animRef = useRef<number>(0);
 
@@ -106,7 +115,29 @@ export default function SwingScoreRing({ score, quality }: Props) {
       <div className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest ${labelStyle.bg} ${labelStyle.text}`}>
         {quality}
       </div>
-      <p className="text-white/40 text-xs">Overall Swing Score</p>
+
+      {/* Fault breakdown mini-badges */}
+      {faultSummary && faultSummary.total_faults > 0 && (
+        <div className="flex gap-2">
+          {faultSummary.critical_count > 0 && (
+            <span className="px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full text-[10px] font-bold">
+              {faultSummary.critical_count} Critical
+            </span>
+          )}
+          {faultSummary.major_count > 0 && (
+            <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded-full text-[10px] font-bold">
+              {faultSummary.major_count} Major
+            </span>
+          )}
+          {faultSummary.minor_count > 0 && (
+            <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full text-[10px] font-bold">
+              {faultSummary.minor_count} Minor
+            </span>
+          )}
+        </div>
+      )}
+
+      <p className="text-white/30 text-[11px] text-center max-w-[240px] leading-relaxed">{getTip(score)}</p>
     </div>
   );
 }
