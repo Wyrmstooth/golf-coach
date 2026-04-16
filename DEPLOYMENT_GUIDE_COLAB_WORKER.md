@@ -9,6 +9,8 @@ Your golf-dashboard now has **two deployment modes**:
 
 This guide shows you how to set up both your **production backend** and **Colab worker** to split the compute load.
 
+**Recommended remote host:** use an **Oracle Cloud Always Free x86 VM** for the worker. Do **not** use Colab for the real analyzer, and do **not** choose an ARM shape if you want the easiest MediaPipe install path.
+
 ---
 
 ## Part 1: Backend Setup (Fly.io or Render)
@@ -135,22 +137,25 @@ Then redeploy the frontend.
 
 ---
 
-The Colab worker is a Python script that runs in Google Colab (free GPU + 12GB RAM) and continuously claims jobs from your queued backend, processes them, and uploads results.
+The remote worker continuously claims jobs from your queued backend, processes them, and uploads results.
 
-### Step 1: Create a Colab Notebook and Install
+**Important:** the current golf pose stack requires Python 3.10 or 3.11. Google Colab is currently running Python 3.12 for you, so the full analyzer will fail there when `mediapipe_compat.py` loads. Use a local machine or an **Oracle Cloud x86 VM** with Python 3.10/3.11 for the real worker.
 
-1. Go to [Google Colab](https://colab.research.google.com)
-2. Click **File** → **New Notebook**
-3. Copy **entire block below** and paste into the first cell:
+**Oracle shape recommendation:** pick `VM.Standard.E2.1.Micro` or another **x86/AMD** Always Free shape with Ubuntu 22.04. Avoid ARM/Ampere unless you are prepared to debug Python wheel compatibility.
+
+### Step 1: Create a Worker Environment and Install
+
+1. Use a machine with **Python 3.10 or 3.11**.
+2. Install the runtime packages with this command:
 
 ```python
 # ============= INSTALL PACKAGES =============
-!pip install -q requests sqlalchemy fastapi python-jose passlib[argon2] pillow opencv-python-headless
+!pip install -q requests sqlalchemy fastapi python-jose passlib[argon2] pillow opencv-python-headless mediapipe==0.10.33 numpy scipy pandas scikit-learn torch torchvision ultralytics matplotlib pyyaml tqdm
 
 print("✅ Packages installed!")
 ```
 
-4. Click ▶️ **Run** and wait 2 minutes
+3. Wait for installation to finish
 
 ---
 
@@ -198,9 +203,16 @@ print(f"   Secret: {WORKER_SECRET[:10]}...")
 1. In your local repo, zip up the **core files** you need:
    - `analyze_video.py`
    - `pose_detector.py`
+    - `mediapipe_compat.py`
    - `config.yaml`
+    - `training/caddieset_feature_extractor.py`
    - Entire `utils/` folder
    - Entire `models/` folder (includes `.pt` weight files)
+
+    Your zip should preserve folders, for example:
+    - `training/caddieset_feature_extractor.py`
+    - `utils/...`
+    - `models/...`
 
 2. **Upload to Colab:**
    - Click the **folder icon** (left sidebar)
@@ -433,9 +445,9 @@ Click ▶️ **Run** and the worker will start polling
 
 **Leave this cell running!** It will continuously check for jobs.
 
-### Step 4: Keep Colab Running (Optional - Prevents Disconnects)
+### Step 5: Keep the Notebook Running (Optional)
 
-**Important:** Colab disconnects after 30 minutes of inactivity. To keep it running:
+**Important:** notebook environments can disconnect after inactivity. To keep it running:
 
 1. Create a **fourth cell** with this keep-alive code:
 
@@ -458,7 +470,7 @@ keep_alive_loop()
 
 2. Click ▶️ **Run** — this will display connection status and keep Colab alive
 
-**Alternative:** Run Colab on a persistent machine (AWS EC2 free tier, Fly.io, local desktop, etc.)
+**Recommended:** run the worker on your local desktop in the `golfpose` conda environment instead of Colab.
 
 ---
 
@@ -493,9 +505,9 @@ Expected response:
 2. Click **Analyze My Swing**
 3. You should see **"Pending..."** (queued state) instead of immediate analysis
 
-### Step 4: Start Colab Worker
+### Step 4: Start Worker
 
-If not already running, go back to your Colab notebook and make sure **Step 3** (the worker loop) is running.
+If not already running, go back to your worker machine and make sure **Step 4** (the worker loop) is running.
 
 ### Step 5: Watch the Magic
 
@@ -537,6 +549,25 @@ If not already running, go back to your Colab notebook and make sure **Step 3** 
 **Cause:** Old setup tried downloading from GitHub and failed (network issue or auth).
 
 **Fix:** Use the new inline setup (Step 1-3 above) which doesn't require downloading from GitHub. All code is pasted directly into Colab.
+
+### Problem: `No module named 'mediapipe_compat'`
+
+**Cause:** The uploaded zip is missing local project files that `pose_detector.py` imports.
+
+**Fix:** Rebuild `golf-files.zip` and include at least:
+1. `analyze_video.py`
+2. `pose_detector.py`
+3. `mediapipe_compat.py`
+4. `config.yaml`
+5. `training/caddieset_feature_extractor.py`
+6. Entire `utils/` folder
+7. Entire `models/` folder
+
+### Problem: MediaPipe or `mediapipe_compat` fails on Colab
+
+**Cause:** Your current Colab runtime is Python 3.12, but this project's MediaPipe compatibility layer requires Python 3.10 or 3.11.
+
+**Fix:** Run the worker locally in the `golfpose` conda environment, or use another machine/VM with Python 3.10/3.11.
 
 ---
 
