@@ -1,10 +1,9 @@
 services:
   - type: web
     name: golfcoach-backend
-    runtime: python
-    pythonVersion: 3.10
-    buildCommand: pip install --no-cache-dir --prefer-binary -r requirements.txt -r backend/requirements_api.txt
-    startCommand: python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: PYTHONUNBUFFERED
         value: 1
@@ -28,8 +27,3 @@ databases:
     region: oregon
     plan: free
 
-jobs:
-  - type: build
-    name: migrate-database
-    buildCommand: pip install --no-cache-dir --prefer-binary -r requirements.txt -r backend/requirements_api.txt && python backend/database.py
-    startCommand: echo "Migration complete"

@@ -77,16 +77,12 @@ git push origin main
 4. Find your repo `golf-dashboard`
 5. Fill in:
    - **Name:** `golfcoach-backend`
-   - **Runtime:** `Python 3.10`
-   - **Build Command:** 
-     ```
-  pip install --no-cache-dir --prefer-binary -r requirements.txt -r backend/requirements_api.txt
-     ```
-   - **Start Command:**
-     ```
-     python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT
-     ```
+   - **Runtime:** `Docker`
+   - **Dockerfile Path:** `./Dockerfile`
+   - **Docker Context:** `.`
    - **Plan:** Select **Free**
+
+Why Docker: MediaPipe Tasks needs native Linux libraries like `libGLESv2.so.2`. Render's plain Python runtime does not provide them, so the backend must run from the included Docker image.
 
 ### 2.2 Add Environment Variables
 
@@ -124,6 +120,8 @@ Click **"Environment"** tab, add these:
    - **Publish Directory:** `frontend/dist`
    - **Plan:** **Free**
 4. Click **"Create Static Site"**
+
+The frontend includes a `_redirects` rule so React routes work on refresh instead of returning 404.
 
 ### 2.5 Update Backend CORS Settings
 
@@ -180,10 +178,15 @@ Render dashboard → service → **"Logs"** tab
 - Check **Build Command** logs
 - Verify `requirements.txt` versions
 - Check `DATABASE_URL` is set correctly
+- If you see missing native libraries like `libGLESv2.so.2`, make sure the backend service is using **Docker runtime**, not Python runtime
 
 ### Frontend can't reach backend
 - Verify `ALLOWED_ORIGINS` includes frontend URL
 - Check backend is actually running in logs
+
+### Frontend route reload shows 404
+- Redeploy the static site after the `_redirects` file is included in the build
+- On Render Static Sites, React Router refreshes require `/* /index.html 200`
 
 ---
 
