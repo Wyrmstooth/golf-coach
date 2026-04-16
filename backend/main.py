@@ -54,20 +54,21 @@ app = FastAPI(
     version="2.0.0",
 )
 
-# Initialise SQLite database tables on startup
+# Initialise database tables on startup
 @app.on_event("startup")
 def on_startup():
     init_db()
 
-# Allow the React dev server (and production build) to call us
+# Get allowed origins from environment or use defaults
+allowed_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
+).split(",")
+
+# Add middleware for CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "http://localhost:3000",   # CRA fallback
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=[origin.strip() for origin in allowed_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -77,6 +78,11 @@ app.add_middleware(
 output_dir = ROOT / "output"
 output_dir.mkdir(exist_ok=True)
 app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
+
+# Serve frontend static files in production
+frontend_dist = ROOT / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="static")
 
 app.include_router(analysis_router.router, prefix="/api")
 app.include_router(live_router.router, prefix="/api")

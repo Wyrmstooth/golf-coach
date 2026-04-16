@@ -1,19 +1,27 @@
 """
-SQLite database setup using SQLAlchemy 2.0 (synchronous, thread-scoped sessions).
-Stores golf.db in the project root alongside other data files.
+Database setup using SQLAlchemy 2.0 (synchronous, thread-scoped sessions).
+Supports both SQLite (local dev) and PostgreSQL (production).
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-DB_PATH = Path(__file__).resolve().parent.parent / "golf.db"
-DATABASE_URL = f"sqlite:///{DB_PATH}"
+# Support both PostgreSQL (production) and SQLite (local dev)
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    f"sqlite:///{Path(__file__).resolve().parent.parent / 'golf.db'}"
+)
+
+# Connection args differ for SQLite vs PostgreSQL
+connect_args = {} if "postgresql" in DATABASE_URL else {"check_same_thread": False}
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},  # needed for SQLite + FastAPI threads
+    connect_args=connect_args,
+    pool_pre_ping=True,  # verify connections are alive before using
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: golfcoach-backend
+    runtime: python
+    pythonVersion: 3.10
+    buildCommand: pip install -r requirements.txt -r backend/requirements_api.txt
+    startCommand: python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: 1
+      - key: MPLBACKEND
+        value: Agg
+      - key: DATABASE_URL
+        fromDatabase:
+          name: golfcoach-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: https://golfcoach-frontend.onrender.com
+
+databases:
+  - name: golfcoach-db
+    databaseName: golfcoach
+    user: golfcoach
+    region: oregon
+    plan: free
+
+jobs:
+  - type: build
+    name: migrate-database
+    buildCommand: pip install -r requirements.txt -r backend/requirements_api.txt && python backend/database.py
+    startCommand: echo "Migration complete"
