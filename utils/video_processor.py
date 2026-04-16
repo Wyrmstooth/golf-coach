@@ -659,7 +659,13 @@ class VideoProcessor:
                 if phase not in phase_ranges:
                     continue
                 start, end = phase_ranges[phase]
-                mid_frame = (start + end) // 2
+                phase_span = max(0, end - start)
+                if phase == "ADDRESS":
+                    # Favor an earlier stable frame so the screenshot does not
+                    # drift into the takeaway on clips with very short setup holds.
+                    mid_frame = start + int(phase_span * 0.25)
+                else:
+                    mid_frame = (start + end) // 2
 
                 # Seek to mid frame
                 cap.set(cv2.CAP_PROP_POS_FRAMES, mid_frame)

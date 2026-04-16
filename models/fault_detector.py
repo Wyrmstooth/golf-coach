@@ -260,10 +260,20 @@ class FaultDetector:
             anomaly_score = (p / 0.65) * 25.0
         else:
             anomaly_score = 25.0 + ((p - 0.65) / 0.35) * 75.0
-        anomaly_score = float(np.clip(anomaly_score, 0, 100))
         
         # Identify specific faults based on features
         fault_messages, fault_details = self._identify_faults(features)
+        
+        # Add fault severity penalty to push bad swings with visible faults higher.
+        # This bridges the gap between ML scores (which top out ~65 for bad swings)
+        # and the user expectation that clearly bad swings score 70-90+.
+        severity_weights = {'critical': 12, 'major': 6, 'minor': 2}
+        fault_penalty = sum(
+            severity_weights.get(f.get('severity', ''), 0)
+            for f in fault_details.get('faults', [])
+        )
+        anomaly_score += fault_penalty
+        anomaly_score = float(np.clip(anomaly_score, 0, 100))
         
         return anomaly_score, fault_messages, fault_details
 
@@ -328,17 +338,16 @@ class FaultDetector:
 
     def _identify_faults(self, features: Dict[str, float]) -> Tuple[List[str], Dict]:
         """
-        Identify specific faults based on CaddieSet phase-prefixed feature values
-        
-        Features are in format: "PHASE-FEATURE" e.g., "0-SPINE-ANGLE", "3-HIP-SHIFTED"
-        Phases: 0=ADDRESS, 1=BACKSWING, 2=TOP, 3=DOWNSWING, 4=IMPACT, 5=FOLLOW_THROUGH
-        
-        Thresholds calibrated from actual good vs bad swing data:
-        - Good swings: SPINE-ANGLE ~ -62, RIGHT-ARM-ANGLE(3) ~ 136
-        - Bad swings: SPINE-ANGLE ~ -75, RIGHT-ARM-ANGLE(3) ~ 39
+        Identify specific faults based on CaddieSet phase-prefixed feature values.
+
+        Thresholds are DATA-DRIVEN, calibrated from 12 good + 24 bad swing videos:
+          Good SPINE-ANGLE: addr=-56.7±3.7, impact=-60.7±4.6, follow=-61.6±5.2
+          Bad  SPINE-ANGLE: addr=-67.1±5.4, impact=-74.6±6.9, follow=-77.5±7.7
+          4-RIGHT-ARM: Good=133.0, Bad=133.8 (NOT discriminating — disabled)
+          5-RIGHT-ARM: Good=136.4, Bad=95.6  (d=-1.26, good discriminator)
 
         Args:
-            features: Biomechanical features (CaddieSet format)
+            features: Biomechanical features (CaddieSet format, e.g. "0-SPINE-ANGLE")
 
         Returns:
             messages: List of formatted fault messages with phase and severity
@@ -346,73 +355,60 @@ class FaultDetector:
         """
         messages = []
         details = {
-            'faults': [],  # List of fault dicts with full info
+            'faults': [],
             'by_phase': {
-                'ADDRESS': [],
-                'BACKSWING': [],
-                'TOP': [],
-                'DOWNSWING': [],
-                'IMPACT': [],
-                'FOLLOW_THROUGH': []
+                'ADDRESS': [], 'BACKSWING': [], 'TOP': [],
+                'DOWNSWING': [], 'IMPACT': [], 'FOLLOW_THROUGH': []
             },
-            'by_severity': {
-                'critical': [],
-                'major': [],
-                'minor': []
-            },
+            'by_severity': {'critical': [], 'major': [], 'minor': []},
             'summary': {
-                'total_faults': 0,
-                'critical_count': 0,
-                'major_count': 0,
-                'minor_count': 0
+                'total_faults': 0, 'critical_count': 0,
+                'major_count': 0, 'minor_count': 0
             }
         }
-        
-        # Helper to get feature value with fallback
+
         def get_feature(phase: int, name: str) -> Optional[float]:
-            key = f"{phase}-{name}"
-            val = features.get(key)
+            val = features.get(f"{phase}-{name}")
             if val is not None and not (isinstance(val, float) and np.isnan(val)):
                 return val
             return None
-        
-        def add_fault(phase: str, severity: str, title: str, description: str,
-                      fix: str, feature_name: str, actual_value: float,
-                      good_range: str, drill: str = ""):
-            """Add a fault with full details including recommended drill"""
+
+        def add_fault(phase, severity, title, description, fix, feature_name,
+                      actual_value, good_range, drill=""):
             fault = {
-                'phase': phase,
-                'severity': severity,
-                'title': title,
-                'description': description,
-                'fix': fix,
-                'drill': drill,
-                'feature': feature_name,
-                'value': actual_value,
-                'expected': good_range,
+                'phase': phase, 'severity': severity, 'title': title,
+                'description': description, 'fix': fix, 'drill': drill,
+                'feature': feature_name, 'value': actual_value, 'expected': good_range,
             }
             details['faults'].append(fault)
             details['by_phase'][phase].append(fault)
             details['by_severity'][severity].append(fault)
-            
-            severity_emoji = {'critical': '🔴', 'major': '🟠', 'minor': '🟡'}
-            emoji = severity_emoji.get(severity, '⚠️')
-            msg = f"{emoji} [{phase}] {title}: {description} → {fix}"
-            messages.append(msg)
-        
-        # =====================================================================
-        # ADDRESS PHASE (0) - Setup position
-        # =====================================================================
+            emoji = {'critical': '🔴', 'major': '🟠', 'minor': '🟡'}.get(severity, '⚠️')
+            messages.append(f"{emoji} [{phase}] {title}: {description} → {fix}")
+
+        # =================================================================
+        # ADDRESS (0) — Setup
+        # Good SPINE: -52 to -64, Bad: -58 to -76
+        # =================================================================
         spine_addr = get_feature(0, 'SPINE-ANGLE')
         if spine_addr is not None:
-            if spine_addr < -80:
+            if spine_addr < -75:
                 add_fault(
                     phase='ADDRESS', severity='major',
                     title='Excessive Forward Bend',
                     description=f'Spine angle is {spine_addr:.1f}° (too bent over)',
                     fix='Stand more upright, bend from hips not waist. Keep chin up.',
-                    drill='Wall Drill: Stand with your back against a wall, bend forward from the hips until your hands reach your knees. This teaches proper hip hinge.',
-                    feature_name='0-SPINE-ANGLE', actual_value=spine_addr, good_range='-48° to -78°',
+                    drill='Wall Drill: Stand with your back against a wall, bend forward from the hips until your hands reach your knees.',
+                    feature_name='0-SPINE-ANGLE', actual_value=spine_addr, good_range='-52° to -64°',
+                )
+            elif spine_addr < -67:
+                add_fault(
+                    phase='ADDRESS', severity='minor',
+                    title='Forward Bend Tendency',
+                    description=f'Spine angle is {spine_addr:.1f}° (leaning forward)',
+                    fix='Check your distance from the ball. Bend from the hips, not the waist.',
+                    drill='Mirror Drill: Practice your setup in front of a mirror with a club behind your back to feel proper spine tilt.',
+                    feature_name='0-SPINE-ANGLE', actual_value=spine_addr, good_range='-52° to -64°',
                 )
             elif spine_addr > -48:
                 add_fault(
@@ -421,33 +417,10 @@ class FaultDetector:
                     description=f'Spine angle is {spine_addr:.1f}° (too upright)',
                     fix='Bend forward more from the hips, let arms hang naturally.',
                     drill='Mirror Drill: Practice your setup in front of a mirror with a club behind your back to feel proper spine tilt.',
-                    feature_name='0-SPINE-ANGLE', actual_value=spine_addr, good_range='-48° to -78°',
-                )
-        
-        # NOTE: Armpit angle checks disabled — 2D measurement is unreliable
-        # (camera angle drastically affects the elbow-shoulder-hip projection)
-        armpit_addr = get_feature(0, 'RIGHT-ARMPIT-ANGLE')
-        if armpit_addr is not None:
-            if armpit_addr < 0:  # effectively disabled
-                add_fault(
-                    phase='ADDRESS', severity='minor',
-                    title='Arms Too Close to Body',
-                    description=f'Armpit angle is {armpit_addr:.1f}° (cramped)',
-                    fix='Create more space between arms and body. Let arms hang naturally.',
-                    drill='Towel Drill: Place a towel under both armpits at address. It should stay in with light pressure, not squeezed tight.',
-                    feature_name='0-RIGHT-ARMPIT-ANGLE', actual_value=armpit_addr, good_range='18° to 65°',
-                )
-            elif armpit_addr > 200:  # effectively disabled
-                add_fault(
-                    phase='ADDRESS', severity='minor',
-                    title='Arms Too Far From Body',
-                    description=f'Armpit angle is {armpit_addr:.1f}° (reaching)',
-                    fix='Stand closer to the ball, let arms hang directly below shoulders.',
-                    drill='Drop Test: Stand upright then let your arms hang. Bend from hips — where your hands fall is where the club should be.',
-                    feature_name='0-RIGHT-ARMPIT-ANGLE', actual_value=armpit_addr, good_range='18° to 65°',
+                    feature_name='0-SPINE-ANGLE', actual_value=spine_addr, good_range='-52° to -64°',
                 )
 
-        # Check knee flex at address
+        # Knee flex
         left_leg_addr = get_feature(0, 'LEFT-LEG-ANGLE')
         if left_leg_addr is not None:
             if left_leg_addr > 176:
@@ -456,18 +429,17 @@ class FaultDetector:
                     title='Locked Knees',
                     description=f'Left leg too straight at {left_leg_addr:.1f}° (need athletic flex)',
                     fix='Soften the knees slightly to create an athletic base.',
-                    drill='Sit-Down Drill: Feel like you are sitting on a tall barstool at address. Knees should flex 15-20°.',
-                    feature_name='0-LEFT-LEG-ANGLE', actual_value=left_leg_addr, good_range='158° to 175°',
+                    drill='Sit-Down Drill: Feel like you are sitting on a tall barstool at address.',
+                    feature_name='0-LEFT-LEG-ANGLE', actual_value=left_leg_addr, good_range='150° to 175°',
                 )
 
-        # Check shoulder alignment at address
+        # Shoulder alignment (noisy in 2D — raise threshold to reduce false positives)
         shoulder_addr = get_feature(0, 'SHOULDER-ANGLE')
         if shoulder_addr is not None:
-            # Normalize to [-90, 90]: raw atan2 wraps around ±180° depending on golfer orientation in frame
             _s = ((shoulder_addr + 180) % 360) - 180
             if _s > 90: _s = 180 - _s
             elif _s < -90: _s = -180 - _s
-            if abs(_s) > 80:
+            if abs(_s) > 86:
                 add_fault(
                     phase='ADDRESS', severity='minor',
                     title='Shoulder Misalignment',
@@ -477,9 +449,10 @@ class FaultDetector:
                     feature_name='0-SHOULDER-ANGLE', actual_value=_s, good_range='-45° to 45°',
                 )
 
-        # =====================================================================
-        # BACKSWING PHASE (1) - Turn and load
-        # =====================================================================
+        # =================================================================
+        # BACKSWING (1) — Turn and load
+        # Good SPINE change from address: ~4°, Bad: ~5.5°
+        # =================================================================
         hip_shift_back = get_feature(1, 'HIP-SHIFTED')
         if hip_shift_back is not None:
             if hip_shift_back < -0.25:
@@ -497,101 +470,99 @@ class FaultDetector:
                     title='Excessive Hip Sway',
                     description=f'Hips over-shifting away from target ({hip_shift_back:.2f})',
                     fix='Rotate the hips, don\'t sway. Keep weight inside the trail foot.',
-                    drill='Foot Pressure Drill: Keep 60% pressure on the inside of your trail foot during backswing. Never let weight go to the outside.',
+                    drill='Foot Pressure Drill: Keep 60% pressure on the inside of your trail foot during backswing.',
                     feature_name='1-HIP-SHIFTED', actual_value=hip_shift_back, good_range='-0.10 to 0.30',
                 )
-        
-        armpit_back = get_feature(1, 'RIGHT-ARMPIT-ANGLE')
-        if armpit_back is not None:
-            if armpit_back < 0:  # effectively disabled
-                add_fault(
-                    phase='BACKSWING', severity='minor',
-                    title='Flying Right Elbow',
-                    description=f'Right armpit angle is {armpit_back:.1f}° (elbow disconnected)',
-                    fix='Keep right elbow closer to body throughout the backswing.',
-                    drill='Headcover Drill: Tuck a headcover under your right armpit and keep it there through the backswing.',
-                    feature_name='1-RIGHT-ARMPIT-ANGLE', actual_value=armpit_back, good_range='25° to 45°',
-                )
 
-        # Check spine angle maintenance during backswing
         spine_back = get_feature(1, 'SPINE-ANGLE')
-        if spine_back is not None and spine_addr is not None:
-            spine_change = abs(spine_back - spine_addr)
-            if spine_change > 20:
+        if spine_back is not None:
+            # Absolute backswing spine check (Good: -58 to -63, Bad: -67 to -79)
+            if spine_back < -75:
                 add_fault(
                     phase='BACKSWING', severity='major',
-                    title='Spine Angle Change',
-                    description=f'Spine angle changed {spine_change:.1f}° from address (was {spine_addr:.1f}°, now {spine_back:.1f}°)',
-                    fix='Maintain your spine angle throughout the backswing. Don\'t stand up or dip.',
-                    drill='Head Against Wall: Practice backswing with your head lightly touching a wall — it should maintain contact throughout the turn.',
-                    feature_name='1-SPINE-ANGLE', actual_value=spine_back, good_range=f'{spine_addr-5:.0f}° to {spine_addr+5:.0f}°',
+                    title='Excessive Bend in Backswing',
+                    description=f'Spine at {spine_back:.1f}° during backswing (too bent)',
+                    fix='Maintain your posture. Rotate around your spine, don\'t dip forward.',
+                    drill='Head Against Wall: Practice backswing with your head touching a wall — maintain contact throughout.',
+                    feature_name='1-SPINE-ANGLE', actual_value=spine_back, good_range='-58° to -63°',
                 )
+            elif spine_back < -67:
+                add_fault(
+                    phase='BACKSWING', severity='minor',
+                    title='Forward Lean in Backswing',
+                    description=f'Spine at {spine_back:.1f}° during backswing (leaning forward)',
+                    fix='Keep your spine angle steady during the backswing turn.',
+                    drill='Head Against Wall: Practice backswing with your head touching a wall — maintain contact throughout.',
+                    feature_name='1-SPINE-ANGLE', actual_value=spine_back, good_range='-58° to -63°',
+                )
+            # Also check change from address
+            if spine_addr is not None:
+                spine_change = abs(spine_back - spine_addr)
+                if spine_change > 15:
+                    add_fault(
+                        phase='BACKSWING', severity='major',
+                        title='Spine Angle Change',
+                        description=f'Spine changed {spine_change:.1f}° from address ({spine_addr:.1f}° → {spine_back:.1f}°)',
+                        fix='Maintain your spine angle throughout the backswing.',
+                        drill='Head Against Wall: Practice backswing with your head touching a wall.',
+                        feature_name='1-SPINE-ANGLE', actual_value=spine_back,
+                        good_range=f'{spine_addr-5:.0f}° to {spine_addr+5:.0f}°',
+                    )
 
-        # Check hip rotation in backswing
         hip_rot_back = get_feature(1, 'HIP-ROTATION')
         if hip_rot_back is not None:
-            if abs(hip_rot_back) < 1:  # only flag truly zero rotation (2D measurement is camera-dependent)
+            if abs(hip_rot_back) < 1:
                 add_fault(
                     phase='BACKSWING', severity='minor',
                     title='Insufficient Hip Turn',
                     description=f'Hip rotation only {hip_rot_back:.1f}° (not enough turn)',
                     fix='Allow your hips to rotate 35-45° in the backswing for proper coil.',
-                    drill='Turn & Hold: Make practice swings to the top and hold for 3 seconds. Feel the stretch in your left side.',
+                    drill='Turn & Hold: Make practice swings to the top and hold for 3 seconds.',
                     feature_name='1-HIP-ROTATION', actual_value=hip_rot_back, good_range='30° to 55°',
                 )
 
-        # =====================================================================
-        # TOP OF BACKSWING (2) - Position at the top
-        # =====================================================================
+        # =================================================================
+        # TOP OF BACKSWING (2)
+        # Good LEFT-ARM: 160.6±11.4, Bad: 147.5±21.2
+        # Good RIGHT-ARM: 91.8±16.3, Bad: 72.0±26.0
+        # =================================================================
         left_arm_top = get_feature(2, 'LEFT-ARM-ANGLE')
         if left_arm_top is not None:
-            if left_arm_top < 80:
+            if left_arm_top < 110:
                 add_fault(
                     phase='TOP', severity='major',
                     title='Left Arm Breakdown',
                     description=f'Left arm bent to {left_arm_top:.1f}° (should be straighter)',
                     fix='Maintain a firm left arm at the top. Some flex is OK, but avoid collapsing.',
-                    drill='Left Arm Only Drill: Make slow half-swings with just your left hand to build awareness of arm extension.',
-                    feature_name='2-LEFT-ARM-ANGLE', actual_value=left_arm_top, good_range='100° to 160°',
+                    drill='Left Arm Only Drill: Make slow half-swings with just your left hand.',
+                    feature_name='2-LEFT-ARM-ANGLE', actual_value=left_arm_top, good_range='140° to 175°',
                 )
-        
-        armpit_top = get_feature(2, 'RIGHT-ARMPIT-ANGLE')
-        if armpit_top is not None:
-            if armpit_top < 0:  # effectively disabled
-                add_fault(
-                    phase='TOP', severity='major',
-                    title='Cramped Top Position',
-                    description=f'Right armpit angle only {armpit_top:.1f}° (too tight)',
-                    fix='Create more width at the top of the backswing. Wider arc = more power.',
-                    drill='Stretch & Reach: At the top, feel like your left hand is reaching as far from your head as possible.',
-                    feature_name='2-RIGHT-ARMPIT-ANGLE', actual_value=armpit_top, good_range='90° to 130°',
-                )
-
-        # Check right arm angle at top (ideally ~90°)
-        right_arm_top = get_feature(2, 'RIGHT-ARM-ANGLE')
-        if right_arm_top is not None:
-            if right_arm_top > 168:
+            elif left_arm_top < 135:
                 add_fault(
                     phase='TOP', severity='minor',
-                    title='Right Arm Too Straight at Top',
-                    description=f'Right arm at {right_arm_top:.1f}° (should have more bend)',
-                    fix='Allow your right elbow to fold naturally to about 90° at the top.',
-                    drill='L-Drill: Feel your right arm forming an "L" shape at the top of the backswing.',
-                    feature_name='2-RIGHT-ARM-ANGLE', actual_value=right_arm_top, good_range='60° to 165°',
+                    title='Left Arm Flex',
+                    description=f'Left arm at {left_arm_top:.1f}° at top (losing width)',
+                    fix='Try to keep the lead arm straighter for more consistent arc.',
+                    drill='Left Arm Only Drill: Make slow half-swings with just your left hand.',
+                    feature_name='2-LEFT-ARM-ANGLE', actual_value=left_arm_top, good_range='140° to 175°',
                 )
-            elif right_arm_top < 40:
+
+        right_arm_top = get_feature(2, 'RIGHT-ARM-ANGLE')
+        if right_arm_top is not None:
+            if right_arm_top < 40:
                 add_fault(
                     phase='TOP', severity='major',
                     title='Over-Folded Right Arm',
                     description=f'Right arm collapsed to {right_arm_top:.1f}° at top',
                     fix='Don\'t let the right arm fold past 90°. Keep width in the backswing.',
-                    drill='Width Drill: Imagine holding a beach ball between your arms at the top — maintain that width.',
-                    feature_name='2-RIGHT-ARM-ANGLE', actual_value=right_arm_top, good_range='80° to 120°',
+                    drill='Width Drill: Imagine holding a beach ball between your arms at the top.',
+                    feature_name='2-RIGHT-ARM-ANGLE', actual_value=right_arm_top, good_range='70° to 120°',
                 )
-        
-        # =====================================================================
-        # DOWNSWING PHASE (3) - Critical transition
-        # =====================================================================
+
+        # =================================================================
+        # DOWNSWING (3) — Critical transition
+        # Good RIGHT-ARM: 88.9±22.2, Bad: 70.2±30.3
+        # =================================================================
         right_arm_down = get_feature(3, 'RIGHT-ARM-ANGLE')
         if right_arm_down is not None:
             if right_arm_down < 35:
@@ -599,9 +570,9 @@ class FaultDetector:
                     phase='DOWNSWING', severity='critical',
                     title='Right Arm Collapse',
                     description=f'Right arm only {right_arm_down:.1f}° (severely collapsed)',
-                    fix='Maintain width. Don\'t let the right arm fold too early. Start the downswing with the lower body.',
-                    drill='Pump Drill: From the top, make 3 small downswing moves (pumps) before completing the swing. Feel the lag and arm extension.',
-                    feature_name='3-RIGHT-ARM-ANGLE', actual_value=right_arm_down, good_range='65° to 160°',
+                    fix='Maintain width. Start the downswing with the lower body.',
+                    drill='Pump Drill: From the top, make 3 small pumps before completing the swing.',
+                    feature_name='3-RIGHT-ARM-ANGLE', actual_value=right_arm_down, good_range='65° to 130°',
                 )
             elif right_arm_down < 60:
                 add_fault(
@@ -609,19 +580,19 @@ class FaultDetector:
                     title='Right Arm Too Bent',
                     description=f'Right arm at {right_arm_down:.1f}° (losing power)',
                     fix='Create more lag while maintaining arm extension. Lead with the hips.',
-                    drill='Step Drill: Step toward the target with your lead foot to start the downswing — this naturally preserves arm extension.',
-                    feature_name='3-RIGHT-ARM-ANGLE', actual_value=right_arm_down, good_range='100° to 150°',
+                    drill='Step Drill: Step toward the target with your lead foot to start the downswing.',
+                    feature_name='3-RIGHT-ARM-ANGLE', actual_value=right_arm_down, good_range='65° to 130°',
                 )
-            elif right_arm_down > 155:
+            elif right_arm_down > 140:
                 add_fault(
                     phase='DOWNSWING', severity='major',
                     title='Casting / Early Extension',
                     description=f'Right arm already at {right_arm_down:.1f}° during downswing (releasing lag too early)',
-                    fix='Keep the right elbow bent longer in the downswing. Delay the arm straightening until impact.',
+                    fix='Keep the right elbow bent longer in the downswing.',
                     drill='Towel Drill: Tuck a towel under your right armpit and keep it there deep into the downswing.',
-                    feature_name='3-RIGHT-ARM-ANGLE', actual_value=right_arm_down, good_range='65° to 140°',
+                    feature_name='3-RIGHT-ARM-ANGLE', actual_value=right_arm_down, good_range='65° to 130°',
                 )
-        
+
         hip_rot_down = get_feature(3, 'HIP-ROTATION')
         if hip_rot_down is not None:
             if hip_rot_down < -200:
@@ -630,10 +601,10 @@ class FaultDetector:
                     title='Hip Over-Rotation',
                     description=f'Hips rotated {hip_rot_down:.1f}° (over-rotating)',
                     fix='Control hip turn. Lead with lower body smoothly, don\'t spin out.',
-                    drill='Feet Together Drill: Hit balls with feet together to feel controlled rotation without excessive hip spin.',
+                    drill='Feet Together Drill: Hit balls with feet together to feel controlled rotation.',
                     feature_name='3-HIP-ROTATION', actual_value=hip_rot_down, good_range='-40° to -160°',
                 )
-            elif abs(hip_rot_down) < 1:  # only flag truly zero rotation (2D measurement is camera-dependent)
+            elif abs(hip_rot_down) < 1:
                 add_fault(
                     phase='DOWNSWING', severity='major',
                     title='Insufficient Hip Rotation',
@@ -642,20 +613,7 @@ class FaultDetector:
                     drill='Belt Buckle Drill: Focus on pointing your belt buckle at the target through impact.',
                     feature_name='3-HIP-ROTATION', actual_value=hip_rot_down, good_range='-80° to -160°',
                 )
-        
-        armpit_down = get_feature(3, 'RIGHT-ARMPIT-ANGLE')
-        if armpit_down is not None:
-            if armpit_down < 0:  # effectively disabled
-                add_fault(
-                    phase='DOWNSWING', severity='critical',
-                    title='Arms Stuck Behind Body',
-                    description=f'Right armpit only {armpit_down:.1f}° (arms trapped)',
-                    fix='Create space for arms to swing freely. Don\'t spin the body ahead of the arms.',
-                    drill='Separation Drill: Make downswings in slow motion. Feel the arms drop before the body opens.',
-                    feature_name='3-RIGHT-ARMPIT-ANGLE', actual_value=armpit_down, good_range='70° to 120°',
-                )
 
-        # Check hip slide toward target (weight transfer)
         hip_shift_down = get_feature(3, 'HIP-SHIFTED')
         if hip_shift_down is not None:
             if hip_shift_down > 0.45:
@@ -664,23 +622,35 @@ class FaultDetector:
                     title='Hanging Back',
                     description=f'Hips not shifting toward target ({hip_shift_down:.2f})',
                     fix='Shift weight to the lead foot to start the downswing. Bump hips toward target.',
-                    drill='Step-Through Drill: After impact, step through with your trail foot (like a baseball swing) to ingrain weight transfer.',
+                    drill='Step-Through Drill: After impact, step through with your trail foot to ingrain weight transfer.',
                     feature_name='3-HIP-SHIFTED', actual_value=hip_shift_down, good_range='-0.10 to 0.05',
                 )
-        
-        # =====================================================================
-        # IMPACT PHASE (4) - Ball contact
-        # =====================================================================
+
+        # =================================================================
+        # IMPACT (4) — Ball contact
+        # Good SPINE: -60.7±4.6, max good=-71.6
+        # Bad  SPINE: -74.6±6.9, range -60 to -91
+        # 4-RIGHT-ARM: Good=133.0, Bad=133.8 — NOT discriminating, only flag extreme
+        # =================================================================
         spine_impact = get_feature(4, 'SPINE-ANGLE')
         if spine_impact is not None:
-            if spine_impact < -84:
+            if spine_impact < -82:
+                add_fault(
+                    phase='IMPACT', severity='critical',
+                    title='Severe Loss of Posture',
+                    description=f'Spine at {spine_impact:.1f}° (severely bent through impact)',
+                    fix='Maintain spine angle from address through impact. You are diving into the ball.',
+                    drill='Impact Bag Drill: Hit an impact bag and freeze. Check spine matches address.',
+                    feature_name='4-SPINE-ANGLE', actual_value=spine_impact, good_range='-52° to -72°',
+                )
+            elif spine_impact < -73:
                 add_fault(
                     phase='IMPACT', severity='major',
                     title='Loss of Posture',
-                    description=f'Spine at {spine_impact:.1f}° (lost posture through impact)',
-                    fix='Maintain spine angle from address through impact. Resist standing up.',
-                    drill='Impact Bag Drill: Hit an impact bag and freeze. Check that your spine angle matches your address position.',
-                    feature_name='4-SPINE-ANGLE', actual_value=spine_impact, good_range='-46° to -82°',
+                    description=f'Spine at {spine_impact:.1f}° (losing posture through impact)',
+                    fix='Maintain spine angle from address through impact. Resist dipping forward.',
+                    drill='Impact Bag Drill: Hit an impact bag and freeze. Check spine matches address.',
+                    feature_name='4-SPINE-ANGLE', actual_value=spine_impact, good_range='-52° to -72°',
                 )
             elif spine_impact > -46:
                 add_fault(
@@ -688,22 +658,10 @@ class FaultDetector:
                     title='Early Extension (Standing Up)',
                     description=f'Spine at {spine_impact:.1f}° (standing up through impact)',
                     fix='Maintain your inclination. Your hips should rotate, not thrust toward the ball.',
-                    drill='Butt to Wall Drill: Setup with your glutes touching a wall. During the swing, keep them there through impact.',
-                    feature_name='4-SPINE-ANGLE', actual_value=spine_impact, good_range='-46° to -82°',
+                    drill='Butt to Wall Drill: Setup with glutes touching a wall. Keep them there through impact.',
+                    feature_name='4-SPINE-ANGLE', actual_value=spine_impact, good_range='-52° to -72°',
                 )
-        
-        armpit_impact = get_feature(4, 'RIGHT-ARMPIT-ANGLE')
-        if armpit_impact is not None:
-            if armpit_impact < 0:  # effectively disabled
-                add_fault(
-                    phase='IMPACT', severity='critical',
-                    title='Cramped Impact Position',
-                    description=f'Right armpit only {armpit_impact:.1f}° (no room to release)',
-                    fix='Create space to extend arms through the ball. Let the club release naturally.',
-                    drill='Throw the Club Drill: Practice the feeling of throwing the clubhead down the target line through impact (don\'t actually throw it!).',
-                    feature_name='4-RIGHT-ARMPIT-ANGLE', actual_value=armpit_impact, good_range='50° to 100°',
-                )
-        
+
         leg_impact = get_feature(4, 'LEFT-LEG-ANGLE')
         if leg_impact is not None:
             if leg_impact < 120:
@@ -711,21 +669,13 @@ class FaultDetector:
                     phase='IMPACT', severity='major',
                     title='Severely Bent Front Leg',
                     description=f'Left leg at {leg_impact:.1f}° (not posted at all)',
-                    fix='Straighten the front leg through impact to create a solid post to rotate around.',
-                    drill='Post Drill: Hit half-shots focusing on straightening your lead leg at impact. Feel like you\'re pushing the ground away.',
-                    feature_name='4-LEFT-LEG-ANGLE', actual_value=leg_impact, good_range='155° to 180°',
-                )
-            elif leg_impact < 135:
-                add_fault(
-                    phase='IMPACT', severity='minor',
-                    title='Bent Front Leg',
-                    description=f'Left leg at {leg_impact:.1f}° (not fully posted)',
-                    fix='Straighten front leg to brace and rotate. This generates ground force.',
-                    drill='Stomp Drill: Stomp your lead foot at the start of the downswing to feel the posting action.',
-                    feature_name='4-LEFT-LEG-ANGLE', actual_value=leg_impact, good_range='170° to 180°',
+                    fix='Straighten the front leg through impact to create a solid post.',
+                    drill='Post Drill: Hit half-shots focusing on straightening your lead leg at impact.',
+                    feature_name='4-LEFT-LEG-ANGLE', actual_value=leg_impact, good_range='150° to 180°',
                 )
 
-        # Check right arm extension at impact
+        # RIGHT-ARM at impact: only flag truly collapsed arms (<90°).
+        # Values 90-170° are the same for good and bad swings — not a discriminator.
         right_arm_impact = get_feature(4, 'RIGHT-ARM-ANGLE')
         if right_arm_impact is not None:
             if right_arm_impact < 90:
@@ -734,35 +684,80 @@ class FaultDetector:
                     title='Casting / Early Release',
                     description=f'Right arm at {right_arm_impact:.1f}° at impact (released too early)',
                     fix='Maintain lag longer. The right arm should be nearly straight at impact.',
-                    drill='Lag Drill: With a short iron, make half-swings keeping your wrists hinged as long as possible.',
-                    feature_name='4-RIGHT-ARM-ANGLE', actual_value=right_arm_impact, good_range='140° to 175°',
-                )
-            elif right_arm_impact < 135:
-                add_fault(
-                    phase='IMPACT', severity='minor',
-                    title='Incomplete Arm Extension',
-                    description=f'Right arm at {right_arm_impact:.1f}° at impact (should be straighter)',
-                    fix='Extend your arms fully through the ball. Feel like you are pushing the club toward the target.',
-                    drill='Extension Drill: Place a tee 6 inches past the ball and try to clip it after impact — forces full extension.',
-                    feature_name='4-RIGHT-ARM-ANGLE', actual_value=right_arm_impact, good_range='140° to 175°',
+                    drill='Lag Drill: With a short iron, make half-swings keeping wrists hinged as long as possible.',
+                    feature_name='4-RIGHT-ARM-ANGLE', actual_value=right_arm_impact, good_range='120° to 175°',
                 )
 
-        # Check hip position at impact
+        # Hip position at impact (Good: -0.3±0.7, Bad: 0.2±0.3)
         hip_shift_impact = get_feature(4, 'HIP-SHIFTED')
         if hip_shift_impact is not None:
-            if hip_shift_impact > 0.40:
+            if hip_shift_impact > 0.50:
                 add_fault(
                     phase='IMPACT', severity='major',
                     title='Weight Hanging Back at Impact',
-                    description=f'Hips still shifted away from target ({hip_shift_impact:.2f}) at impact',
+                    description=f'Hips shifted away from target ({hip_shift_impact:.2f}) at impact',
                     fix='Shift 70-80% of weight to your lead foot by impact.',
-                    drill='Press Drill: At impact, you should feel 80% of your weight on the lead foot. Practice pausing at impact to check.',
-                    feature_name='4-HIP-SHIFTED', actual_value=hip_shift_impact, good_range='-0.15 to 0.05',
+                    drill='Press Drill: At impact, feel 80% of weight on lead foot. Pause to check.',
+                    feature_name='4-HIP-SHIFTED', actual_value=hip_shift_impact, good_range='-0.15 to 0.10',
                 )
-        
-        # =====================================================================
-        # FOLLOW THROUGH (5) - Finish position
-        # =====================================================================
+            elif hip_shift_impact > 0.30:
+                add_fault(
+                    phase='IMPACT', severity='minor',
+                    title='Insufficient Weight Transfer',
+                    description=f'Hips not shifted enough toward target ({hip_shift_impact:.2f}) at impact',
+                    fix='Bump hips toward the target as you start the downswing.',
+                    drill='Step-Through Drill: After impact, step through with trail foot to feel the weight transfer.',
+                    feature_name='4-HIP-SHIFTED', actual_value=hip_shift_impact, good_range='-0.15 to 0.10',
+                )
+
+        # =================================================================
+        # FOLLOW-THROUGH (5)
+        # Good 5-RIGHT-ARM: 136.4±26.7 (most 120-153, outlier at 52)
+        # Bad  5-RIGHT-ARM: 95.6±37.1  (many < 100)
+        # Good 5-SPINE: -61.6±5.2, Bad: -77.5±7.7
+        # =================================================================
+        right_arm_follow = get_feature(5, 'RIGHT-ARM-ANGLE')
+        if right_arm_follow is not None:
+            if right_arm_follow < 65:
+                add_fault(
+                    phase='FOLLOW_THROUGH', severity='major',
+                    title='Severe Chicken Wing',
+                    description=f'Right arm only {right_arm_follow:.1f}° in follow-through (arms collapsed)',
+                    fix='Extend both arms fully after impact. Arms should form a wide "V" shape.',
+                    drill='Extension Drill: After impact, focus on reaching both arms toward the target before folding.',
+                    feature_name='5-RIGHT-ARM-ANGLE', actual_value=right_arm_follow, good_range='120° to 155°',
+                )
+            elif right_arm_follow < 100:
+                add_fault(
+                    phase='FOLLOW_THROUGH', severity='minor',
+                    title='Limited Extension',
+                    description=f'Right arm only {right_arm_follow:.1f}° in follow-through (chicken wing)',
+                    fix='Extend both arms fully after impact. The "V" shape should point down the target.',
+                    drill='Glove Under Armpit: Place glove under lead armpit. Keep it there through the follow-through.',
+                    feature_name='5-RIGHT-ARM-ANGLE', actual_value=right_arm_follow, good_range='120° to 155°',
+                )
+
+        spine_follow = get_feature(5, 'SPINE-ANGLE')
+        if spine_follow is not None:
+            if spine_follow < -84:
+                add_fault(
+                    phase='FOLLOW_THROUGH', severity='major',
+                    title='Hunched Finish',
+                    description=f'Spine at {spine_follow:.1f}° at finish (still very bent over)',
+                    fix='Stand tall in the finish. Your chest should face the target with an upright spine.',
+                    drill='Finish Position Drill: Swing to a full finish and hold — belt buckle faces target, chest up.',
+                    feature_name='5-SPINE-ANGLE', actual_value=spine_follow, good_range='-55° to -68°',
+                )
+            elif spine_follow < -72:
+                add_fault(
+                    phase='FOLLOW_THROUGH', severity='minor',
+                    title='Forward Lean at Finish',
+                    description=f'Spine at {spine_follow:.1f}° at finish (didn\'t fully release)',
+                    fix='Rotate through the ball and stand taller at finish.',
+                    drill='Finish Position Drill: Swing to a full finish and hold — belt buckle faces target, chest up.',
+                    feature_name='5-SPINE-ANGLE', actual_value=spine_follow, good_range='-55° to -68°',
+                )
+
         finish_angle = get_feature(5, 'FINISH-ANGLE')
         if finish_angle is not None:
             if finish_angle > -45:
@@ -771,7 +766,7 @@ class FaultDetector:
                     title='Incomplete Finish',
                     description=f'Finish angle at {finish_angle:.1f}° (didn\'t rotate through)',
                     fix='Complete the swing. Belt buckle should face the target, weight on lead foot.',
-                    drill='Pose & Hold: After every swing, hold your finish for 3 seconds. You should be balanced with belt buckle facing target.',
+                    drill='Pose & Hold: After every swing, hold your finish for 3 seconds.',
                     feature_name='5-FINISH-ANGLE', actual_value=finish_angle, good_range='-50° to -115°',
                 )
             elif finish_angle < -120:
@@ -780,54 +775,37 @@ class FaultDetector:
                     title='Over-Rotation in Finish',
                     description=f'Finish angle at {finish_angle:.1f}° (over-rotated)',
                     fix='Control the follow-through. A balanced finish indicates a controlled swing.',
-                    drill='Balance Drill: Swing at 80% effort and hold the finish on your lead foot only for 5 seconds.',
+                    drill='Balance Drill: Swing at 80% effort and hold the finish on lead foot for 5 seconds.',
                     feature_name='5-FINISH-ANGLE', actual_value=finish_angle, good_range='-75° to -95°',
                 )
 
-        # Check follow-through extension
-        right_arm_follow = get_feature(5, 'RIGHT-ARM-ANGLE')
-        if right_arm_follow is not None:
-            if right_arm_follow < 80:
-                add_fault(
-                    phase='FOLLOW_THROUGH', severity='minor',
-                    title='Limited Extension',
-                    description=f'Right arm only {right_arm_follow:.1f}° in follow-through (chicken wing)',
-                    fix='Extend both arms fully after impact. The "V" shape should point down the target.',
-                    drill='Glove Under Armpit: Remove the glove, place under lead armpit. Keep it there through the follow-through for connected arms.',
-                    feature_name='5-RIGHT-ARM-ANGLE', actual_value=right_arm_follow, good_range='140° to 175°',
-                )
-
-        # Check spine at finish (should be more upright)
-        spine_follow = get_feature(5, 'SPINE-ANGLE')
-        if spine_follow is not None:
-            if spine_follow < -92:
-                add_fault(
-                    phase='FOLLOW_THROUGH', severity='minor',
-                    title='Hunched Finish',
-                    description=f'Spine at {spine_follow:.1f}° at finish (still bent over)',
-                    fix='Stand tall in the finish. Your chest should face the target with an upright spine.',
-                    drill='Finish Position Drill: Practice swinging to a full finish and hold. Check: belt buckle faces target, chest up, weight on lead foot.',
-                    feature_name='5-SPINE-ANGLE', actual_value=spine_follow, good_range='-50° to -70°',
-                )
-
-        # =====================================================================
+        # =================================================================
         # CROSS-PHASE CONSISTENCY CHECKS
-        # =====================================================================
-        # Check spine angle consistency through the swing
+        # Good spine range: ~10-15°, Bad: ~20-30°+
+        # =================================================================
         spine_values = [get_feature(i, 'SPINE-ANGLE') for i in range(6)]
         valid_spines = [(i, v) for i, v in enumerate(spine_values) if v is not None]
         if len(valid_spines) >= 3:
             spine_range = max(v for _, v in valid_spines) - min(v for _, v in valid_spines)
-            if spine_range > 35:
+            if spine_range > 30:
                 add_fault(
-                    phase='DOWNSWING', severity='minor',
+                    phase='DOWNSWING', severity='major',
                     title='Inconsistent Spine Angle',
                     description=f'Spine angle varies by {spine_range:.1f}° across the swing',
-                    fix='Maintain a consistent spine angle from address through impact. Key to consistent ball striking.',
-                    drill='Mirror Drill: Practice in front of a mirror. Pause at address, top, and impact — spine angle should look the same.',
-                    feature_name='SPINE-CONSISTENCY', actual_value=spine_range, good_range='< 30°',
+                    fix='Maintain a consistent spine angle from address through impact.',
+                    drill='Mirror Drill: Pause at address, top, and impact — spine angle should look the same.',
+                    feature_name='SPINE-CONSISTENCY', actual_value=spine_range, good_range='< 20°',
                 )
-        
+            elif spine_range > 20:
+                add_fault(
+                    phase='DOWNSWING', severity='minor',
+                    title='Spine Angle Drift',
+                    description=f'Spine angle varies by {spine_range:.1f}° across the swing',
+                    fix='Work on keeping your spine angle steady throughout the swing.',
+                    drill='Mirror Drill: Pause at address, top, and impact — spine angle should look the same.',
+                    feature_name='SPINE-CONSISTENCY', actual_value=spine_range, good_range='< 20°',
+                )
+
         # Update summary counts
         details['summary']['total_faults'] = len(details['faults'])
         details['summary']['critical_count'] = len(details['by_severity']['critical'])
