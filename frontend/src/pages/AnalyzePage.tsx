@@ -72,6 +72,9 @@ export default function AnalyzePage() {
   };
 
   // Build video URL from report outputs
+  const videoFilename = report?.outputs?.annotated_video
+    ? report.outputs.annotated_video.split(/[\\/]/).pop()
+    : undefined;
   const videoUrl = report?.outputs?.annotated_video_data_uri
     ?? (report?.outputs?.annotated_video && jobId
       ? getFileUrl(jobId, report.outputs.annotated_video.split(/[\\/]/).pop() ?? report.outputs.annotated_video)
