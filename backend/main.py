@@ -79,15 +79,17 @@ output_dir = ROOT / "output"
 output_dir.mkdir(exist_ok=True)
 app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
 
-# Serve frontend static files in production
-frontend_dist = ROOT / "frontend" / "dist"
-if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="static")
-
+# Register API routers BEFORE the SPA catch-all static mount
 app.include_router(analysis_router.router, prefix="/api")
 app.include_router(live_router.router, prefix="/api")
 app.include_router(auth_router.router, prefix="/api")
 app.include_router(sessions_router.router, prefix="/api")
+
+# Serve frontend static files in production — MUST be AFTER API routers
+# (mounting "/" as StaticFiles catches all unmatched routes, so /api would 405)
+frontend_dist = ROOT / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="static")
 
 
 @app.middleware("http")

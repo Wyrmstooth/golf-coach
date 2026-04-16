@@ -50,6 +50,35 @@ from backend.job_store import job_store
 router = APIRouter()
 executor = ThreadPoolExecutor(max_workers=2)
 
+
+def _recover_job_from_disk(job_id: str) -> dict | None:
+    """
+    Reconstruct a completed job entry from files saved on disk.
+    Called when job_id is missing from the in-memory store (e.g. after a hot-reload).
+    Returns a minimal job dict if the output directory exists, else None.
+    """
+    output_dir = ROOT / "output" / job_id
+    if not output_dir.is_dir():
+        return None
+    report_files = sorted(output_dir.glob("*_report.json"))
+    if not report_files:
+        # Dir exists but no report yet → job may still be running in another process
+        return None
+    import json
+    try:
+        with open(report_files[0]) as fh:
+            report = json.load(fh)
+    except Exception:
+        report = None
+    return {
+        "status": "done",
+        "progress": 100,
+        "video_path": "",
+        "report": report,
+        "output_dir": str(output_dir),
+        "error": None,
+    }
+
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 
@@ -181,7 +210,7 @@ async def analyze_video(
 @router.get("/status/{job_id}")
 async def get_status(job_id: str) -> Dict[str, Any]:
     """Return current job status and progress (0–100)."""
-    job = job_store.get(job_id)
+    job = job_store.get(job_id) or _recover_job_from_disk(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
     return {
@@ -195,7 +224,7 @@ async def get_status(job_id: str) -> Dict[str, Any]:
 @router.get("/report/{job_id}")
 async def get_report(job_id: str) -> Any:
     """Return the full JSON report once the job is done."""
-    job = job_store.get(job_id)
+    job = job_store.get(job_id) or _recover_job_from_disk(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
     if job["status"] != "done":
@@ -209,7 +238,7 @@ async def get_report(job_id: str) -> Any:
 @router.get("/files/{job_id}/{filename}")
 async def get_file(job_id: str, filename: str) -> FileResponse:
     """Serve output files produced by the analysis (PNG, MP4, CSV, JSON)."""
-    job = job_store.get(job_id)
+    job = job_store.get(job_id) or _recover_job_from_disk(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
     output_dir = job.get("output_dir")

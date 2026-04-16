@@ -20,6 +20,22 @@ from pathlib import Path
 from typing import Optional, List
 from urllib.request import urlretrieve
 
+# Patch PoseLandmarker.__del__ to suppress the benign RuntimeError that fires
+# when Python shuts down its thread executor before MediaPipe can free itself.
+try:
+    from mediapipe.tasks.python.vision.pose_landmarker import PoseLandmarker as _PL
+    _orig_pl_del = _PL.__del__
+
+    def _safe_pl_del(self):
+        try:
+            _orig_pl_del(self)
+        except Exception:
+            pass
+
+    _PL.__del__ = _safe_pl_del
+except Exception:
+    pass
+
 _MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
     "pose_landmarker_full/float16/latest/pose_landmarker_full.task"
@@ -181,7 +197,18 @@ class Pose:
         return _PoseResult(None)
 
     def close(self):
-        self._landmarker.close()
+        try:
+            self._landmarker.close()
+        except Exception:
+            pass
+
+    def __del__(self):
+        # Suppress RuntimeError from mediapipe executor shutdown during
+        # Python interpreter teardown (harmless but noisy)
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def __enter__(self):
         return self

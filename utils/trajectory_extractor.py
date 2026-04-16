@@ -135,7 +135,65 @@ class TrajectoryExtractor:
             cap.release()
             pose.close()
         
+        # Apply temporal smoothing to cached landmarks to reduce MediaPipe jitter
+        self._smooth_cached_landmarks()
+        
         return frame_data
+    
+    def _smooth_cached_landmarks(self, window_size: int = 7):
+        """
+        Apply temporal smoothing to cached landmark coordinates.
+        
+        Uses median filter (spike removal) + Savitzky-Golay (smooth trajectory)
+        on x, y, z coordinates while preserving visibility scores.
+        This significantly reduces frame-to-frame MediaPipe jitter that causes
+        false positive fault detections.
+        """
+        from scipy.signal import savgol_filter
+        from scipy.ndimage import median_filter
+        
+        valid_indices = [i for i, lm in enumerate(self.cached_landmarks) if lm is not None]
+        if len(valid_indices) < window_size:
+            return
+        
+        valid_landmarks = [self.cached_landmarks[i] for i in valid_indices]
+        stacked = np.array(valid_landmarks, dtype=np.float64)  # [T, 33, 4]
+        smoothed = stacked.copy()
+        
+        win = window_size if window_size % 2 == 1 else window_size + 1
+        poly_order = min(3, win - 1)
+        
+        # Smooth x, y, z coordinates (not visibility at index 3)
+        for lm_idx in range(stacked.shape[1]):
+            for coord_idx in range(min(3, stacked.shape[2])):
+                signal = stacked[:, lm_idx, coord_idx]
+                if not np.all(np.isfinite(signal)):
+                    # Interpolate any NaN/inf values
+                    valid = np.isfinite(signal)
+                    if valid.sum() < win:
+                        continue
+                    signal = np.interp(
+                        np.arange(len(signal)),
+                        np.where(valid)[0],
+                        signal[valid]
+                    )
+                
+                if len(signal) >= 3:
+                    # Step 1: Median filter to remove single-frame spikes
+                    signal = median_filter(signal, size=3)
+                
+                if len(signal) >= win:
+                    # Step 2: Savitzky-Golay for smooth trajectory preservation
+                    try:
+                        smoothed[:, lm_idx, coord_idx] = savgol_filter(signal, win, poly_order)
+                    except Exception:
+                        smoothed[:, lm_idx, coord_idx] = signal
+                else:
+                    smoothed[:, lm_idx, coord_idx] = signal
+        
+        # Write smoothed values back into cached_landmarks
+        for j, i in enumerate(valid_indices):
+            self.cached_landmarks[i] = smoothed[j].astype(np.float32)
     
     def _smooth_trajectories(self, frame_data: List[Dict]) -> List[Dict]:
         """Apply Gaussian smoothing to trajectory data"""

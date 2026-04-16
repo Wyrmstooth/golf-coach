@@ -577,10 +577,14 @@ class CaddieSetFeatureExtractor:
                     address_key = f"0-{feature}"
                     if current_key in phase_features and address_key in self._address_reference:
                         # Store as delta from address
-                        phase_features[current_key] = (
+                        delta = (
                             phase_features[current_key] - 
                             self._address_reference[address_key]
                         )
+                        # Normalize angular deltas to avoid ±180° wrapping artifacts
+                        if feature == 'HIP-ROTATION':
+                            delta = ((delta + 180) % 360) - 180
+                        phase_features[current_key] = delta
         
         return phase_features
     
@@ -589,3 +593,98 @@ class CaddieSetFeatureExtractor:
         if self.pose is not None:
             self.pose.close()
             self.pose = None
+    
+    def extract_from_landmarks(
+        self,
+        landmarks_sequence: list,
+        phase_ranges: dict,
+        frame_height: int,
+        frame_width: int,
+        min_visibility: float = 0.4
+    ) -> dict:
+        """
+        Extract CaddieSet-compatible features from pre-computed landmarks.
+        
+        This avoids re-processing the video through MediaPipe, using the
+        already-cached (and smoothed) landmarks from TrajectoryExtractor
+        along with phase ranges from SwingPhaseAnalyzer.
+        
+        Args:
+            landmarks_sequence: List of [33, 4] arrays (x, y, z, visibility) or None
+            phase_ranges: Dict mapping phase name str to (start, end) frame indices
+            frame_height: Video frame height
+            frame_width: Video frame width
+            min_visibility: Minimum average key-landmark visibility to include a frame
+        
+        Returns:
+            Dictionary with phase-prefixed features e.g. '0-SPINE-ANGLE'
+        """
+        PHASE_NAME_TO_INDEX = {
+            'ADDRESS': 0, 'BACKSWING': 1, 'TOP': 2,
+            'DOWNSWING': 3, 'IMPACT': 4, 'FOLLOW_THROUGH': 5
+        }
+        KEY_LANDMARKS = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]
+        
+        phase_features = {}
+        
+        for phase_name, (start, end) in phase_ranges.items():
+            phase_idx = PHASE_NAME_TO_INDEX.get(phase_name, -1)
+            if phase_idx < 0:
+                continue
+            
+            # Collect valid, high-visibility landmarks for this phase
+            phase_landmarks = []
+            for i in range(start, min(end + 1, len(landmarks_sequence))):
+                lm = landmarks_sequence[i]
+                if lm is None:
+                    continue
+                # Filter by average visibility of key body landmarks
+                if lm.shape[1] > 3:
+                    avg_vis = np.mean([lm[idx, 3] for idx in KEY_LANDMARKS])
+                    if avg_vis < min_visibility:
+                        continue
+                    phase_landmarks.append(lm[:, :3])  # x, y, z only
+                else:
+                    phase_landmarks.append(lm[:, :3])
+            
+            if not phase_landmarks:
+                continue
+            
+            # Extract features for each valid frame in the phase
+            frame_features_list = [
+                self.extract_frame_features(lm, frame_height, frame_width)
+                for lm in phase_landmarks
+            ]
+            
+            # Aggregate using median (robust to remaining outliers)
+            for feature_name in frame_features_list[0].keys():
+                values = [
+                    ff[feature_name] for ff in frame_features_list
+                    if feature_name in ff and np.isfinite(ff[feature_name])
+                ]
+                if values:
+                    phase_features[f"{phase_idx}-{feature_name}"] = float(np.median(values))
+            
+            # Store address reference for relative calculations
+            if phase_idx == 0:
+                self._address_reference = {
+                    k: v for k, v in phase_features.items() if k.startswith('0-')
+                }
+        
+        # Compute relative features (delta from address)
+        if self._address_reference:
+            for phase_idx in range(1, 6):
+                for feature in ['HEAD-LOC', 'HIP-SHIFTED', 'HIP-LINE', 'HIP-ROTATION']:
+                    current_key = f"{phase_idx}-{feature}"
+                    address_key = f"0-{feature}"
+                    if current_key in phase_features and address_key in self._address_reference:
+                        delta = (
+                            phase_features[current_key] -
+                            self._address_reference[address_key]
+                        )
+                        # Normalize angular deltas to avoid ±180° wrapping artifacts
+                        if feature == 'HIP-ROTATION':
+                            delta = ((delta + 180) % 360) - 180
+                        phase_features[current_key] = delta
+        
+        return phase_features

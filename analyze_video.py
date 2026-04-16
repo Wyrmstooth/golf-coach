@@ -264,9 +264,9 @@ class MLSwingAnalyzer:
 
         fault_results = None
         if self.fault_detector:
-            # Use CaddieSet feature extractor (proper feature extraction)
-            caddieset_features = self.caddieset_extractor.extract_from_video(
-                str(video_path), verbose=False, preprocess=False
+            # Use cached landmarks + detected phase ranges (single-pass, no re-processing)
+            caddieset_features = self.caddieset_extractor.extract_from_landmarks(
+                landmarks_sequence, phase_ranges, frame_height, frame_width
             )
             
             # Predict using CaddieSet-compatible features
@@ -278,26 +278,30 @@ class MLSwingAnalyzer:
                 'messages': messages
             }
 
+            # Interpret the score (rescaled: good swings ~0-25, bad swings ~50-100)
+            if score >= 55:
+                swing_quality = "Poor"
+            elif score >= 38:
+                swing_quality = "Needs Work"
+            elif score >= 25:
+                swing_quality = "Good"
+            else:
+                swing_quality = "Excellent"
+            fault_results['swing_quality'] = swing_quality
+
             if verbose:
                 print(f"\n⚠️  Fault Analysis:")
                 print(f"   Overall Fault Score: {fault_results['overall_score']:.1f}/100")
                 print(f"   (Higher score = more faults detected)")
                 
-                # Interpret the score
-                if score >= 70:
+                if score >= 55:
                     print("   ❌ Significant technique issues detected!")
-                    swing_quality = "Poor"
-                elif score >= 50:
+                elif score >= 38:
                     print("   ⚠️ Several technique issues found - needs improvement")
-                    swing_quality = "Needs Work"
-                elif score >= 30:
+                elif score >= 25:
                     print("   ✓ Minor form variations - acceptable technique")
-                    swing_quality = "Good"
                 else:
                     print("   ✅ Professional-level technique!")
-                    swing_quality = "Excellent"
-                
-                fault_results['swing_quality'] = swing_quality
                 
                 # Show fault summary by severity
                 if details.get('summary', {}).get('total_faults', 0) > 0:
@@ -340,8 +344,8 @@ class MLSwingAnalyzer:
             # Reuse CaddieSet features from fault detection
             if not fault_results:
                 # Extract if fault detection was skipped
-                caddieset_features = self.caddieset_extractor.extract_from_video(
-                    str(video_path), verbose=False, preprocess=False
+                caddieset_features = self.caddieset_extractor.extract_from_landmarks(
+                    landmarks_sequence, phase_ranges, frame_height, frame_width
                 )
             
             # Predict performance using CaddieSet-compatible features
