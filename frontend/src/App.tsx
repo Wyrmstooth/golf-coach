@@ -22,8 +22,22 @@ export default function App() {
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={<LandingPage />} />
-          <Route path="/analyze" element={<AnalyzePage />} />
-          <Route path="/live" element={<LivePage />} />
+          <Route
+            path="/analyze"
+            element={
+              <ProtectedRoute>
+                <AnalyzePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/live"
+            element={
+              <ProtectedRoute>
+                <LivePage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route
