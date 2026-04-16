@@ -72,31 +72,25 @@ export default function AnalyzePage() {
   };
 
   // Build video URL from report outputs
-  const videoFilename = report?.outputs?.annotated_video
-    ? report.outputs.annotated_video.split(/[\\/]/).pop()
-    : null;
-  const videoUrl = jobId && videoFilename
-    ? getFileUrl(jobId, videoFilename)
-    : null;
+  const videoUrl = report?.outputs?.annotated_video_data_uri
+    ?? (report?.outputs?.annotated_video && jobId
+      ? getFileUrl(jobId, report.outputs.annotated_video.split(/[\\/]/).pop() ?? report.outputs.annotated_video)
+      : null);
 
   // Ball trajectory plot image
-  const ballPlotFilename = report?.outputs?.ball_plot
-    ? report.outputs.ball_plot.split(/[\\/]/).pop()
-    : null;
-  const ballPlotUrl = jobId && ballPlotFilename
-    ? getFileUrl(jobId, ballPlotFilename)
-    : null;
+  const ballPlotUrl = report?.outputs?.ball_plot_data_uri
+    ?? (report?.outputs?.ball_plot && jobId
+      ? getFileUrl(jobId, report.outputs.ball_plot.split(/[\\/]/).pop() ?? report.outputs.ball_plot)
+      : null);
 
   // Wrist trajectory plot
-  const plotFilename = report?.outputs?.plot
-    ? report.outputs.plot.split(/[\\/]/).pop()
-    : null;
-  const plotUrl = jobId && plotFilename
-    ? getFileUrl(jobId, plotFilename)
-    : null;
+  const plotUrl = report?.outputs?.plot_data_uri
+    ?? (report?.outputs?.plot && jobId
+      ? getFileUrl(jobId, report.outputs.plot.split(/[\\/]/).pop() ?? report.outputs.plot)
+      : null);
 
   // Phase screenshots
-  const phaseScreenshots = report?.outputs?.phase_screenshots ?? {};
+  const phaseScreenshots = report?.outputs?.phase_screenshot_data_uris ?? report?.outputs?.phase_screenshots ?? {};
   const screenshotEntries = Object.entries(phaseScreenshots).filter(([, path]) => path);
 
   return (
@@ -369,8 +363,7 @@ export default function AnalyzePage() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                     {screenshotEntries.map(([phase, path]) => {
-                      const filename = path.split(/[\\/]/).pop();
-                      const url = jobId && filename ? `/api/files/${jobId}/${filename}` : null;
+                      const url = path;
                       if (!url) return null;
                       return (
                         <div key={phase} className="space-y-1.5">

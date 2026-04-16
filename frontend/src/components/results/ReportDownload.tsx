@@ -352,17 +352,23 @@ export default function ReportDownload({ report, jobId }: Props2) {
         year: "numeric", month: "long", day: "numeric",
       });
 
-      // Fetch phase screenshots as base64 data URIs (only when jobId is present)
+      // Prefer inline data URIs. Fall back to backend file URLs for older reports.
       const phaseImages: Record<string, string> = {};
+      const inlinePhaseImages = report.outputs?.phase_screenshot_data_uris ?? {};
+      for (const [phase, dataUri] of Object.entries(inlinePhaseImages)) {
+        if (dataUri) phaseImages[phase] = dataUri;
+      }
+
       if (jobId) {
         const phaseScreenshots = report.outputs?.phase_screenshots ?? {};
-        const entries = await Promise.all(
-          Object.entries(phaseScreenshots).map(async ([phase, filename]) => {
+        const missingPhaseEntries = Object.entries(phaseScreenshots).filter(([phase]) => !phaseImages[phase]);
+        const fetchedEntries = await Promise.all(
+          missingPhaseEntries.map(async ([phase, filename]) => {
             const dataUri = await fetchAsDataUri(`/api/files/${jobId}/${filename}`);
             return [phase, dataUri] as [string, string | null];
           })
         );
-        for (const [phase, dataUri] of entries) {
+        for (const [phase, dataUri] of fetchedEntries) {
           if (dataUri) phaseImages[phase] = dataUri;
         }
       }

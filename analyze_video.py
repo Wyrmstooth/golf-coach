@@ -15,6 +15,7 @@ Usage:
 """
 
 import argparse
+import base64
 import sys
 from pathlib import Path
 import yaml
@@ -23,6 +24,13 @@ import numpy as np
 from typing import List, Dict, Tuple, Optional
 
 sys.path.append(str(Path(__file__).parent))
+
+
+def _file_to_data_uri(path: Path, mime_type: str) -> str | None:
+    if not path or not path.exists() or not path.is_file():
+        return None
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
 
 from utils.trajectory_extractor import TrajectoryExtractor
 from utils.swing_phase_analyzer import SwingPhaseAnalyzer
@@ -467,6 +475,22 @@ class MLSwingAnalyzer:
             for phase, path in phase_screenshots.items()
         }
 
+        plot_data_uri = _file_to_data_uri(plot_path, "image/png")
+        ball_plot_data_uri = _file_to_data_uri(ball_plot_path, "image/png") if ball_plot_path else None
+        phase_screenshot_data_uris = {
+            phase: _file_to_data_uri(Path(path), "image/png")
+            for phase, path in phase_screenshots.items()
+        }
+
+        # Delete image artifacts after they have been encoded into the report.
+        # The frontend can render the inline data URIs directly.
+        for image_path in [plot_path, ball_plot_path, *[Path(path) for path in phase_screenshots.values()]]:
+            if image_path and Path(image_path).exists():
+                try:
+                    Path(image_path).unlink()
+                except Exception:
+                    pass
+
 
         # =====================================================================
         # Create comprehensive JSON report
@@ -627,9 +651,13 @@ class MLSwingAnalyzer:
             'ball_tracking': convert_to_serializable(ball_tracking_section),
             'outputs': {
                 'plot': str(plot_path),
+                'plot_data_uri': plot_data_uri,
                 'annotated_video': str(annotated_video_path) if annotated_video_path else None,
+                'annotated_video_data_uri': None,
                 'ball_plot': str(ball_plot_path) if ball_plot_path else None,
+                'ball_plot_data_uri': ball_plot_data_uri,
                 'phase_screenshots': phase_screenshot_filenames,
+                'phase_screenshot_data_uris': phase_screenshot_data_uris,
             }
 
         }

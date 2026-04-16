@@ -66,9 +66,13 @@ export interface AnalysisReport {
   };
   outputs: {
     plot: string;
+    plot_data_uri?: string | null;
     annotated_video: string | null;
+    annotated_video_data_uri?: string | null;
     ball_plot: string | null;
+    ball_plot_data_uri?: string | null;
     phase_screenshots: Record<string, string>;
+    phase_screenshot_data_uris?: Record<string, string | null>;
   };
 }
 
