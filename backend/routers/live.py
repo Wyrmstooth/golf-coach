@@ -36,6 +36,7 @@ _mp_pose = mp.solutions.pose
 _mp_drawing = mp.solutions.drawing_utils
 _mp_drawing_styles = mp.solutions.drawing_styles
 _pose_instance: Optional[Any] = None
+_MAX_LIVE_FRAME_WIDTH = 960
 
 
 def _get_pose() -> Any:
@@ -90,6 +91,12 @@ def _check_address_posture_frame(frame: np.ndarray) -> Dict[str, Any]:
     }
 
     pose = _get_pose()
+
+    height, width = frame.shape[:2]
+    if width > _MAX_LIVE_FRAME_WIDTH:
+        target_width = _MAX_LIVE_FRAME_WIDTH
+        target_height = int(height * (target_width / width))
+        frame = cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_AREA)
 
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     rgb.flags.writeable = False
