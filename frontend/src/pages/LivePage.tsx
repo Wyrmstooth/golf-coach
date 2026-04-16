@@ -19,11 +19,7 @@ export default function LivePage() {
   const startCamera = async () => {
     try {
       const s = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 960 },
-          height: { ideal: 540 },
-        },
+        video: { width: 1280, height: 720, facingMode: "user" },
         audio: false,
       });
       setStream(s);
@@ -126,7 +122,7 @@ export default function LivePage() {
               stream={stream}
               mirrored
               onFrame={tab === "address" && connected ? sendFrame : undefined}
-              frameInterval={120}
+              frameInterval={200}
               annotatedFrame={tab === "address" ? annotatedFrame : null}
             />
 

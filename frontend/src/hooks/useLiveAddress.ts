@@ -8,7 +8,6 @@ export function useLiveAddress() {
   const [connected, setConnected] = useState(false);
 
   const socketRef = useRef<LiveAddressSocket | null>(null);
-  const frameInFlightRef = useRef(false);
   // Timer to delay clearing metrics when pose is briefly lost
   const poseLostTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track when we entered a "good" position for the hold timer
@@ -22,8 +21,6 @@ export function useLiveAddress() {
   }, []);
 
   const handleFeedback = useCallback((fb: AddressFeedback) => {
-    frameInFlightRef.current = false;
-
     if (fb.status === "ok") {
       // Pose is visible – cancel any pending "pose lost" clear
       if (poseLostTimerRef.current) {
@@ -76,21 +73,16 @@ export function useLiveAddress() {
     setConnected(false);
     setFeedback(null);
     setAnnotatedFrame(null);
-    frameInFlightRef.current = false;
     _stopHoldTimer();
     if (poseLostTimerRef.current) { clearTimeout(poseLostTimerRef.current); poseLostTimerRef.current = null; }
   }, [_stopHoldTimer]);
 
   const sendFrame = useCallback((dataUri: string) => {
-    if (frameInFlightRef.current) return;
-    if (!socketRef.current) return;
-    frameInFlightRef.current = true;
-    socketRef.current.sendFrame(dataUri);
+    socketRef.current?.sendFrame(dataUri);
   }, []);
 
   useEffect(() => () => {
     socketRef.current?.disconnect();
-    frameInFlightRef.current = false;
     if (poseLostTimerRef.current) clearTimeout(poseLostTimerRef.current);
     if (holdIntervalRef.current) clearInterval(holdIntervalRef.current);
   }, []);

@@ -15,7 +15,7 @@ export default function CameraFeed({
   stream,
   mirrored = true,
   onFrame,
-  frameInterval = 120,
+  frameInterval = 200,
   annotatedFrame,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -40,14 +40,8 @@ export default function CameraFeed({
       const canvas = canvasRef.current;
       if (!video || !canvas || video.readyState < 2) return;
 
-      const maxWidth = 960;
-      const sourceWidth = video.videoWidth;
-      const sourceHeight = video.videoHeight;
-      const targetWidth = Math.min(sourceWidth, maxWidth);
-      const targetHeight = Math.round((sourceHeight / sourceWidth) * targetWidth);
-
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
@@ -62,7 +56,7 @@ export default function CameraFeed({
         ctx.drawImage(video, 0, 0);
       }
 
-      onFrame(canvas.toDataURL("image/jpeg", 0.5));
+      onFrame(canvas.toDataURL("image/jpeg", 0.6));
     }, frameInterval);
 
     return () => clearInterval(intervalRef.current);
