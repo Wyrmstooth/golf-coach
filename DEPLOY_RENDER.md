@@ -16,6 +16,9 @@ This guide walks you through deploying GolfCoach AI to **Render.com** for comple
 2. **Render.com account** (sign up free at https://render.com)
 3. **Your repo on GitHub** (public or private)
 
+Important: use the same repository this workspace pushes to: `zainulabidin776/golf-dashboard`.
+If Render is connected to a different repo, it will keep deploying stale requirements and the Python version fixes will never apply.
+
 ---
 
 ## 🔧 Step 1: Prepare Your Repository
@@ -77,7 +80,7 @@ git push origin main
    - **Runtime:** `Python 3.10`
    - **Build Command:** 
      ```
-     pip install -r requirements.txt -r backend/requirements_api.txt
+  pip install --no-cache-dir --prefer-binary -r requirements.txt -r backend/requirements_api.txt
      ```
    - **Start Command:**
      ```
