@@ -21,7 +21,7 @@ git push origin main
 3. Fill in:
    - **Name:** `golfcoach-backend` 
    - **Runtime:** `Python 3.10`
-   - **Build Command:** `pip install -r requirements.txt -r backend/requirements_api.txt`
+   - **Build Command:** `pip install --no-cache-dir -r requirements.txt -r backend/requirements_api.txt`
    - **Start Command:** `python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
    - **Plan:** `Free`
 4. Click **"Create Web Service"** (wait 5-10 min)
@@ -85,22 +85,23 @@ After everything deploys (~15-20 min total):
 
 ## ⚠️ Common Issues
 
-### **"Cannot GET /"**
-- Frontend still building, wait 2-3 more minutes
-
-### **"Connection refused" error in app**
-- `ALLOWED_ORIGINS` not set correctly
-- Use frontend URL from your Render dashboard
-- Check `DATABASE_URL` is set in backend
-
-### **"No module named X"**
-- Check Build Command has both requirements:
-  ```
-  pip install -r requirements.txt -r backend/requirements_api.txt
+### **"No matching distribution found for mediapipe"**
+- ✅ **FIXED** — I updated requirements.txt to use `mediapipe==0.10.33` (0.10.21 no longer exists)
+- Also created `runtime.txt` to force Python 3.10 (MediaPipe needs 3.10, not 3.14)
+- **Action:** Push your latest code:
+  ```bash
+  git add .
+  git commit -m "Fix: Update MediaPipe version and Python 3.10"
+  git push origin main
   ```
 
-### **View Logs**
-Click service → **"Logs"** tab to debug issues
+### **"Python version 3.14.3 not supported"**
+- ✅ **FIXED** — `runtime.txt` now locks Python to 3.10.15
+- Render will use this file to set the correct version
+
+### **"Could not find Poetry"**
+- Render won't use Poetry if there's no `pyproject.toml`
+- We don't have one, so it should use pip by default
 
 ---
 
