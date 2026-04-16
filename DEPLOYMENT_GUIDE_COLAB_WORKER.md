@@ -137,131 +137,332 @@ Then redeploy the frontend.
 
 The Colab worker is a Python script that runs in Google Colab (free GPU + 12GB RAM) and continuously claims jobs from your queued backend, processes them, and uploads results.
 
-### Step 1: Create a Colab Notebook
+### Step 1: Create a Colab Notebook and Install
 
 1. Go to [Google Colab](https://colab.research.google.com)
 2. Click **File** → **New Notebook**
 3. Copy **entire block below** and paste into the first cell:
 
 ```python
-# ============= GOLF DASHBOARD COLAB WORKER =============
-# Just run this cell — it handles everything
+# ============= INSTALL PACKAGES =============
+!pip install -q requests sqlalchemy fastapi python-jose passlib[argon2] pillow opencv-python-headless
 
-# Step 1: Install packages (takes ~2 min)
-!pip install -q requests sqlalchemy fastapi python-jose passlib[argon2]
+print("✅ Packages installed!")
+```
 
-# Step 2: Download the worker script directly
-import requests
-url = "https://raw.githubusercontent.com/zainulabidin776/golf-dashboard/master/colab_worker.py"
-response = requests.get(url)
-with open("colab_worker.py", "w") as f:
-    f.write(response.text)
+4. Click ▶️ **Run** and wait 2 minutes
 
-# Step 3: Download analyze_video.py and supporting files
-url2 = "https://raw.githubusercontent.com/zainulabidin776/golf-dashboard/master/analyze_video.py"
-response2 = requests.get(url2)
-with open("analyze_video.py", "w") as f:
-    f.write(response2.text)
+---
 
-print("✅ Files downloaded!")
+### Step 2: Set Configuration
 
-# Step 4: Set your configuration (FILL IN THE VALUES BELOW)
+Create a **second cell** and paste:
+
+```python
 import os
 
-BACKEND_URL = "https://golfcoach-backend.onrender.com"  # ← CHANGE THIS to your backend URL
-WORKER_SECRET = "your-32-char-secret-here"              # ← CHANGE THIS to your ANALYSIS_WORKER_SECRET
+# ⬇️ CHANGE THESE TWO VALUES ⬇️
+BACKEND_URL = "https://golf-dashboard-vmqd.onrender.com"  # Replace with YOUR backend URL
+WORKER_SECRET = "-5&z2wvx*.>0QO]uE:cPaSd~gINk^M;X<"  # Replace with YOUR ANALYSIS_WORKER_SECRET
 
-# Set environment
+# Set environment variables
 os.environ["BACKEND_URL"] = BACKEND_URL
 os.environ["ANALYSIS_WORKER_SECRET"] = WORKER_SECRET
 os.environ["WORKER_ID"] = "colab-worker-1"
 
-print(f"✅ Configured to use: {BACKEND_URL}")
-print("✅ Ready to start worker!")
+print(f"✅ Configured!")
+print(f"   Backend: {BACKEND_URL}")
+print(f"   Secret: {WORKER_SECRET[:10]}...")
 ```
 
-### **Fill in these TWO values:**
+**Where to find these values:**
 
-Find them on your **Render backend** (Dashboard → golfcoach-backend → Environment):
+1. Open [Render Dashboard](https://dashboard.render.com/)
+2. Click **golfcoach-backend**
+3. Copy the URL from the top (your `BACKEND_URL`)
+4. Scroll to **Environment** → find `ANALYSIS_WORKER_SECRET` → click eye icon → copy value
 
-| What to Find | Where to Get It | Example |
-|---|---|---|
-| **Backend URL** | Render dashboard top shows the URL | `https://golfcoach-backend.onrender.com` |
-| **ANALYSIS_WORKER_SECRET** | Environment Variables list | `aBcD1234eFgH5678ijKl9012mnOp` |
+| What to Find | Example |
+|---|---|
+| **Backend URL** | `https://golfcoach-backend-abc123.onrender.com` |
+| **ANALYSIS_WORKER_SECRET** | `aBcD1234eFgH5678ijKl9012mnOp` |
 
-**Paste the values into the code above, then click the ▶️ Run button**
+5. Paste both values into the cell above, then click ▶️ **Run**
 
-### Step 2: Start the Worker
+---
 
-1. **Scroll down** and create a **second cell** (Insert → Code)
-2. Copy-paste this:
+### Step 3: Upload the Analyzer Files (Private Repo)
+
+**⚠️ Your repo is private, so we'll upload files directly instead of downloading from GitHub.**
+
+1. In your local repo, zip up the **core files** you need:
+   - `analyze_video.py`
+   - `pose_detector.py`
+   - `config.yaml`
+   - Entire `utils/` folder
+   - Entire `models/` folder (includes `.pt` weight files)
+
+2. **Upload to Colab:**
+   - Click the **folder icon** (left sidebar)
+   - Click the **upload file icon** (looks like ⬆️)
+   - Select your zip file
+   - Wait for upload to complete
+
+3. **Extract in Colab** - create a **third cell** and paste:
 
 ```python
-# ============= START THE WORKER =============
-# This will run forever, checking for jobs every 10 seconds
-# It's safe to leave running — it just polls and waits
+import shutil
+import os
 
-import time
+# Extract uploaded zip
+if os.path.exists("golf-files.zip"):
+    shutil.unpack_archive("golf-files.zip", "/tmp/golf")
+    os.chdir("/tmp/golf")
+    print("✅ Files extracted to /tmp/golf")
+else:
+    print("❌ Upload golf-files.zip first!")
+```
+
+Click ▶️ **Run**
+
+---
+
+### Step 4: Start the Remote Worker
+
+Create a **fourth cell** and paste the complete worker (this is the main worker loop):
+
+```python
+import os
 import requests
 import json
 from pathlib import Path
+import time
+import sys
 
-# Verify config worked
+# Make sure we're in the right directory
+os.chdir("/tmp/golf")
+sys.path.insert(0, "/tmp/golf")
+
+# Get config
 backend_url = os.environ.get("BACKEND_URL")
 secret = os.environ.get("ANALYSIS_WORKER_SECRET")
+worker_id = os.environ.get("WORKER_ID", "colab-worker-1")
 
 if not backend_url or not secret:
-    print("❌ ERROR: Set BACKEND_URL and ANALYSIS_WORKER_SECRET in the first cell!")
-    exit(1)
+    print("❌ ERROR: Set BACKEND_URL and ANALYSIS_WORKER_SECRET in Step 2 first!")
+    sys.exit(1)
 
-print(f"🎯 Worker starting...")
+print(f"🎯 Worker Starting...")
 print(f"   Backend: {backend_url}")
-print(f"   Checking for jobs every 10 seconds...")
-print()
+print(f"   Worker ID: {worker_id}")
+print(f"   Polling every 10 seconds for jobs...\n")
 
-# Run the worker
-exec(open("colab_worker.py").read())
+# ============= HELPER FUNCTIONS =============
+
+def claim_job():
+    """Claim the next available job from the backend"""
+    try:
+        response = requests.post(
+            f"{backend_url}/api/worker/jobs/next",
+            headers={"X-Worker-Secret": secret},
+            timeout=10
+        )
+        if response.status_code == 200:
+            job = response.json()
+            if job and job.get("job_id"):
+                return job
+        elif response.status_code == 204:
+            return None  # No jobs available
+        return None
+    except Exception as e:
+        return None
+
+def download_video(job_id, output_path):
+    """Download the video for a job"""
+    try:
+        response = requests.get(
+            f"{backend_url}/api/worker/jobs/{job_id}/download",
+            headers={"X-Worker-Secret": secret},
+            stream=True,
+            timeout=120
+        )
+        if response.status_code == 200:
+            total_size = int(response.headers.get('content-length', 0))
+            with open(output_path, "wb") as f:
+                downloaded = 0
+                for chunk in response.iter_content(chunk_size=1024*1024):  # 1MB chunks
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0:
+                            pct = int((downloaded / total_size) * 20)  # 0-20% for download
+                            send_progress(job_id, pct)
+            return True
+        return False
+    except Exception as e:
+        return False
+
+def send_progress(job_id, progress_percent):
+    """Update job progress on backend"""
+    try:
+        requests.post(
+            f"{backend_url}/api/worker/jobs/{job_id}/progress",
+            headers={"X-Worker-Secret": secret},
+            json={"progress": min(progress_percent, 99)},  # Never 100% until complete
+            timeout=10
+        )
+    except:
+        pass
+
+def upload_results(job_id, report_json, output_dir):
+    """Upload analysis results back to backend"""
+    try:
+        # Build files dict
+        files_dict = {}
+        
+        # Add report.json
+        files_dict["report"] = ("report.json", json.dumps(report_json))
+        
+        # Add output files
+        if Path(output_dir).exists():
+            for file_path in Path(output_dir).glob("*"):
+                if file_path.is_file():
+                    with open(file_path, "rb") as f:
+                        files_dict[file_path.name] = (file_path.name, f.read())
+        
+        response = requests.post(
+            f"{backend_url}/api/worker/jobs/{job_id}/complete",
+            headers={"X-Worker-Secret": secret},
+            files=files_dict,
+            timeout=120
+        )
+        return response.status_code == 200
+    except Exception as e:
+        return False
+
+def analyze_video_real(video_path, job_id, output_dir):
+    """Run the REAL analyzer using MLSwingAnalyzer"""
+    try:
+        # Import the analyzer
+        from analyze_video import MLSwingAnalyzer
+        
+        send_progress(job_id, 25)
+        
+        # Create output dir
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        
+        # Run analysis
+        analyzer = MLSwingAnalyzer()
+        send_progress(job_id, 30)
+        
+        report = analyzer.analyze_video(video_path, output_dir)
+        send_progress(job_id, 95)
+        
+        return report
+    except Exception as e:
+        print(f"      ❌ Analysis error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+# ============= MAIN WORKER LOOP =============
+
+empty_count = 0
+while True:
+    job = claim_job()
+    
+    if job and job.get("job_id"):
+        empty_count = 0
+        job_id = job.get("job_id")
+        video_path = f"/tmp/job_{job_id}.mp4"
+        output_dir = f"/tmp/output_{job_id}"
+        
+        print(f"✅ Job claimed: {job_id}")
+        send_progress(job_id, 1)
+        
+        # Download
+        print(f"   📥 Downloading video...")
+        if not download_video(job_id, video_path):
+            print(f"   ❌ Failed to download")
+            try:
+                requests.post(f"{backend_url}/api/worker/jobs/{job_id}/fail",
+                             headers={"X-Worker-Secret": secret},
+                             json={"error": "Failed to download video"})
+            except:
+                pass
+            continue
+        
+        # Analyze
+        print(f"   🔍 Running analysis...")
+        result = analyze_video_real(video_path, job_id, output_dir)
+        
+        if result is None:
+            print(f"   ❌ Analysis failed")
+            try:
+                requests.post(f"{backend_url}/api/worker/jobs/{job_id}/fail",
+                             headers={"X-Worker-Secret": secret},
+                             json={"error": "Analysis failed"})
+            except:
+                pass
+            continue
+        
+        # Upload
+        print(f"   📤 Uploading results...")
+        if upload_results(job_id, result, output_dir):
+            print(f"   ✅ Complete!\n")
+        else:
+            print(f"   ❌ Upload failed\n")
+    else:
+        empty_count += 1
+        if empty_count == 1:
+            print("⏳ Waiting for jobs... (polling every 10s)")
+        time.sleep(10)
 ```
 
-3. Click the ▶️ **Run button**
+Click ▶️ **Run** and the worker will start polling
 
-The worker will start and show:
+**Output should look like:**
 ```
-🎯 Worker starting...
+🎯 Worker Starting...
    Backend: https://golfcoach-backend.onrender.com
-   Checking for jobs every 10 seconds...
+   Worker ID: colab-worker-1
+   Polling every 10 seconds for jobs...
 
-Waiting for jobs... (checks every 10s)
+⏳ Waiting for jobs... (polling every 10s)
 ```
 
-**Leave this cell running** — it will wait for jobs from your app.
+**Leave this cell running!** It will continuously check for jobs.
 
-### Step 3: Keep Colab Running
+### Step 4: Keep Colab Running (Optional - Prevents Disconnects)
 
-**Important:** Colab will disconnect if idle for >30 mins. To keep it running:
+**Important:** Colab disconnects after 30 minutes of inactivity. To keep it running:
 
-1. Add a keep-alive cell at the top:
+1. Create a **fourth cell** with this keep-alive code:
 
 ```python
 from IPython.display import clear_output
 import time
 
-def keep_alive():
+def keep_alive_loop():
+    start_time = time.time()
     while True:
         clear_output(wait=True)
-        print(f"Worker is alive: {time.strftime('%H:%M:%S')}")
+        elapsed = int(time.time() - start_time)
+        hours = elapsed // 3600
+        mins = (elapsed % 3600) // 60
+        print(f"🟢 Colab connected | Uptime: {hours}h {mins}m")
         time.sleep(60)
 
-# Run in background (optional)
-import threading
-threading.Thread(target=keep_alive, daemon=True).start()
+keep_alive_loop()
 ```
 
-2. Or run Colab on a persistent machine instead (AWS EC2, Fly.io, etc.)
+2. Click ▶️ **Run** — this will display connection status and keep Colab alive
+
+**Alternative:** Run Colab on a persistent machine (AWS EC2 free tier, Fly.io, local desktop, etc.)
 
 ---
 
-## Part 3: Complete Flow Test
+## Part 3: Complete Flow Test (Verify Everything Works)
 
 ### Step 1: Verify Backend is Running
 
@@ -294,7 +495,7 @@ Expected response:
 
 ### Step 4: Start Colab Worker
 
-If not already running, start the Colab notebook (Part 2, Step 2 above).
+If not already running, go back to your Colab notebook and make sure **Step 3** (the worker loop) is running.
 
 ### Step 5: Watch the Magic
 
@@ -304,7 +505,7 @@ If not already running, start the Colab notebook (Part 2, Step 2 above).
 
 ---
 
-## Part 4: Environment Variables Reference
+## Part 5: Environment Variables Reference
 
 ### Backend (set on Render/Fly.io)
 
@@ -329,7 +530,15 @@ If not already running, start the Colab notebook (Part 2, Step 2 above).
 
 ---
 
-## Part 5: Troubleshooting
+## Part 6: Troubleshooting
+
+### Problem: "404: Not Found" when running Colab cell
+
+**Cause:** Old setup tried downloading from GitHub and failed (network issue or auth).
+
+**Fix:** Use the new inline setup (Step 1-3 above) which doesn't require downloading from GitHub. All code is pasted directly into Colab.
+
+---
 
 ### Problem: "Analysis stuck at Pending"
 
@@ -378,7 +587,7 @@ If not already running, start the Colab notebook (Part 2, Step 2 above).
 
 ---
 
-## Part 6: Production Checklist
+## Part 7: Production Checklist
 
 - [ ] Backend env vars set (see Part 1, Step 2)
 - [ ] Database URL points to working PostgreSQL (Neon or Render managed)
@@ -392,7 +601,7 @@ If not already running, start the Colab notebook (Part 2, Step 2 above).
 
 ---
 
-## Part 7: Advanced: Running Worker Locally (Alternative to Colab)
+## Part 8: Advanced: Running Worker Locally (Alternative to Colab)
 
 If you want to run the worker on your own machine instead of Colab:
 
@@ -414,7 +623,7 @@ The script is identical whether running in Colab, locally, or on a cloud VM — 
 
 ---
 
-## Part 8: Scaling Beyond One Worker
+## Part 9: Scaling Beyond One Worker
 
 If one Colab worker is too slow:
 

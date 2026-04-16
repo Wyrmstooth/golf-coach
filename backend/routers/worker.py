@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
 
 from backend.job_store import job_store
@@ -64,8 +64,11 @@ def claim_next_job(
 ):
     job = job_store.claim_next(worker_id)
     if job is None:
-        return {"job": None}
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     return {
+        "job_id": job["job_id"],
+        "video_filename": job.get("video_filename"),
+        "progress": job.get("progress"),
         "job": {
             "job_id": job["job_id"],
             "video_filename": job.get("video_filename"),
@@ -86,34 +89,71 @@ def download_job_video(job_id: str, _: str = Depends(require_worker_secret)):
     return FileResponse(video_path, filename=filename)
 
 
+async def _read_request_data(request: Request) -> tuple[dict[str, Any], list[UploadFile]]:
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        payload = await request.json()
+        if isinstance(payload, dict):
+            return payload, []
+        return {}, []
+
+    form = await request.form()
+    payload: dict[str, Any] = {}
+    uploads: list[UploadFile] = []
+    for key, value in form.multi_items():
+        if isinstance(value, UploadFile):
+            uploads.append(value)
+        else:
+            payload[key] = value
+    return payload, uploads
+
+
 @router.post("/jobs/{job_id}/progress")
-def update_job_progress(
+async def update_job_progress(
     job_id: str,
-    progress: int = Form(...),
+    request: Request,
     _: str = Depends(require_worker_secret),
 ):
+    payload, _ = await _read_request_data(request)
+    progress = payload.get("progress")
+    try:
+        progress_value = int(progress)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="progress is required.") from exc
+
     job = job_store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
-    job_store.update(job_id, status="running", progress=max(0, min(progress, 99)))
+    job_store.update(job_id, status="running", progress=max(0, min(progress_value, 99)))
     return {"detail": "ok"}
 
 
 @router.post("/jobs/{job_id}/complete")
 async def complete_job(
     job_id: str,
-    report_json: str = Form(...),
-    artifacts: list[UploadFile] = File(default=[]),
+    request: Request,
     _: str = Depends(require_worker_secret),
 ):
     job = job_store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
 
+    payload, uploads = await _read_request_data(request)
+    report_json = payload.get("report_json")
+
+    if report_json is None:
+        report_upload = next((upload for upload in uploads if (upload.filename or "") == "report.json"), None)
+        if report_upload is not None:
+            report_json = (await report_upload.read()).decode("utf-8")
+            uploads = [upload for upload in uploads if upload is not report_upload]
+
+    if report_json is None:
+        raise HTTPException(status_code=400, detail="report_json is required.")
+
     output_dir = job.get("output_dir") or str(ROOT / "output" / job_id)
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    for artifact in artifacts:
+    for artifact in uploads:
         filename = Path(artifact.filename or "artifact.bin").name
         if not filename:
             continue
@@ -149,11 +189,15 @@ async def complete_job(
 
 
 @router.post("/jobs/{job_id}/fail")
-def fail_job(
+async def fail_job(
     job_id: str,
-    error: str = Form(...),
+    request: Request,
     _: str = Depends(require_worker_secret),
 ):
+    payload, _ = await _read_request_data(request)
+    error = payload.get("error")
+    if not error:
+        raise HTTPException(status_code=422, detail="error is required.")
     if not job_store.exists(job_id):
         raise HTTPException(status_code=404, detail="Job not found.")
     job_store.update(job_id, status="error", progress=0, error=error)
