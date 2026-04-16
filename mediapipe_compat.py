@@ -18,19 +18,27 @@ import mediapipe as mp
 import numpy as np
 from pathlib import Path
 from typing import Optional, List
+from urllib.request import urlretrieve
+
+_MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
+    "pose_landmarker_full/float16/latest/pose_landmarker_full.task"
+)
 
 # ---------------------------------------------------------------------------
 # Locate the bundled pose landmarker model
 # ---------------------------------------------------------------------------
 _MODEL_PATH = Path(__file__).resolve().parent / "models" / "pose_landmarker_full.task"
 if not _MODEL_PATH.exists():
-    raise FileNotFoundError(
-        f"Pose landmarker model not found at {_MODEL_PATH}. "
-        "Download it with:\n"
-        "  Invoke-WebRequest -Uri 'https://storage.googleapis.com/mediapipe-models/"
-        "pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task'"
-        f" -OutFile '{_MODEL_PATH}'"
-    )
+    _MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        urlretrieve(_MODEL_URL, _MODEL_PATH)
+    except Exception as exc:
+        raise FileNotFoundError(
+            f"Pose landmarker model not found at {_MODEL_PATH} and automatic download failed. "
+            "Download it with:\n"
+            f"  curl -L '{_MODEL_URL}' -o '{_MODEL_PATH}'"
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
