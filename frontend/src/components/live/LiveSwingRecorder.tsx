@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Video, Square, Loader2, RotateCcw } from "lucide-react";
 import axios from "axios";
 import type { AnalysisReport } from "../../api/analysis";
+import { getApiBase } from "../../api/base";
 import SwingScoreRing from "../results/SwingScoreRing";
 import FaultCards from "../results/FaultCards";
 import PerformanceMetrics from "../results/PerformanceMetrics";
@@ -63,7 +64,7 @@ export default function LiveSwingRecorder({ stream }: Props) {
       try {
         const form = new FormData();
         form.append("file", file);
-        const { data } = await axios.post<AnalysisReport>("/api/live/swing", form, {
+        const { data } = await axios.post<AnalysisReport>(`${getApiBase()}/live/swing`, form, {
           headers: { "Content-Type": "multipart/form-data" },
           timeout: 300_000,
           onUploadProgress: (e) => {

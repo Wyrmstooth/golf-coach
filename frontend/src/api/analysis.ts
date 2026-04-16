@@ -1,4 +1,5 @@
 import client from "./client";
+import { getApiBase } from "./base";
 
 export interface JobStatus {
   job_id: string;
@@ -91,7 +92,7 @@ export async function getReport(jobId: string): Promise<AnalysisReport> {
 }
 
 export function getFileUrl(jobId: string, filename: string): string {
-  return `/api/files/${jobId}/${filename}`;
+  return `${getApiBase()}/files/${jobId}/${filename}`;
 }
 
 export interface JobSummary {

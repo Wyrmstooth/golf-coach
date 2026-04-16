@@ -1,8 +1,9 @@
 import axios from "axios";
 import { useAuthStore } from "../store/authStore";
+import { getApiBase } from "./base";
 
 const client = axios.create({
-  baseURL: "/api",
+  baseURL: getApiBase(),
   timeout: 300_000, // 5-min timeout for long analyses
 });
 

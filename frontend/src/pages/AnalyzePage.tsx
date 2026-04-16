@@ -14,6 +14,7 @@ import VideoPlayer from "../components/results/VideoPlayer";
 import ReportDownload from "../components/results/ReportDownload";
 
 import { uploadVideo } from "../api/analysis";
+import { getFileUrl } from "../api/analysis";
 import { useAnalysisJob } from "../hooks/useAnalysisJob";
 import { useAppStore } from "../store/appStore";
 
@@ -75,7 +76,7 @@ export default function AnalyzePage() {
     ? report.outputs.annotated_video.split(/[\\/]/).pop()
     : null;
   const videoUrl = jobId && videoFilename
-    ? `/api/files/${jobId}/${videoFilename}`
+    ? getFileUrl(jobId, videoFilename)
     : null;
 
   // Ball trajectory plot image
@@ -83,7 +84,7 @@ export default function AnalyzePage() {
     ? report.outputs.ball_plot.split(/[\\/]/).pop()
     : null;
   const ballPlotUrl = jobId && ballPlotFilename
-    ? `/api/files/${jobId}/${ballPlotFilename}`
+    ? getFileUrl(jobId, ballPlotFilename)
     : null;
 
   // Wrist trajectory plot
@@ -91,7 +92,7 @@ export default function AnalyzePage() {
     ? report.outputs.plot.split(/[\\/]/).pop()
     : null;
   const plotUrl = jobId && plotFilename
-    ? `/api/files/${jobId}/${plotFilename}`
+    ? getFileUrl(jobId, plotFilename)
     : null;
 
   // Phase screenshots

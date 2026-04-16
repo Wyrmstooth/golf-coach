@@ -1,3 +1,5 @@
+import { getWsBase } from "./base";
+
 export interface AddressFeedback {
   status: "ok" | "no_pose" | "error";
   angles: Record<string, number>;
@@ -16,9 +18,7 @@ export class LiveAddressSocket {
   }
 
   connect(): void {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.hostname;
-    const url = `${protocol}//${host}:8000/api/live/address`;
+    const url = `${getWsBase()}/live/address`;
     this.ws = new WebSocket(url);
     this.ws.onmessage = (evt) => {
       try {
