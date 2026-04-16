@@ -113,6 +113,12 @@ def save_session_for_user(
     report: dict,
 ) -> SwingSession:
     """Called after analysis completes to persist results for a logged-in user."""
+    existing = (
+        db.query(SwingSession)
+        .filter(SwingSession.user_id == user_id, SwingSession.job_id == job_id)
+        .first()
+    )
+
     # Try nested structure first (fault_analysis), then flat structure for backwards compat
     fault_analysis = report.get("fault_analysis", {})
     score        = fault_analysis.get("overall_score") or report.get("overall_score") or report.get("swing_score")
@@ -135,16 +141,14 @@ def save_session_for_user(
             fault_name = f.get("title") or f.get("name") or f.get("fault") or str(f)
             fault_names.append(fault_name)
 
-    s = SwingSession(
-        user_id=user_id,
-        job_id=job_id,
-        video_filename=video_filename,
-        overall_score=float(score) if score is not None else None,
-        swing_quality=str(quality) if quality else None,
-        faults_json=json.dumps(fault_names),
-        report_json=json.dumps(report),
-    )
-    db.add(s)
+    s = existing or SwingSession(user_id=user_id, job_id=job_id)
+    s.video_filename = video_filename
+    s.overall_score = float(score) if score is not None else None
+    s.swing_quality = str(quality) if quality else None
+    s.faults_json = json.dumps(fault_names)
+    s.report_json = json.dumps(report)
+    if existing is None:
+        db.add(s)
     db.commit()
     db.refresh(s)
     return s

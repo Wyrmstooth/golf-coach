@@ -1,31 +1,20 @@
-"""
-Analysis router – wraps MLSwingAnalyzer in background threads.
-
-Endpoints:
-  POST   /api/analyze                  Upload video, start analysis job
-  GET    /api/status/{job_id}          Poll job progress
-  GET    /api/report/{job_id}          Fetch completed JSON report
-  GET    /api/files/{job_id}/{filename} Serve output files (PNG, MP4, CSV)
-"""
+"""Analysis router – stores uploads and either queues or runs analysis."""
 from __future__ import annotations
 
 import os
-import shutil
 import sys
 import uuid
-import tempfile
 import traceback
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
 
-from backend.auth import get_optional_user
-from backend.database import get_db
-from sqlalchemy.orm import Session
+from backend.auth import get_current_user
+from backend.models import User
 
 logger = logging.getLogger("golfcoach")
 
@@ -48,10 +37,14 @@ if _sys.version_info >= (3, 12):
 from backend.job_store import job_store
 
 router = APIRouter()
-executor = ThreadPoolExecutor(max_workers=2)
+executor = ThreadPoolExecutor(max_workers=1)
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
+ANALYSIS_EXECUTION_MODE = os.getenv(
+    "ANALYSIS_EXECUTION_MODE",
+    "remote" if os.getenv("ENVIRONMENT", "development").lower() == "production" else "local",
+).lower()
 
 
 def _run_analysis(
@@ -126,17 +119,13 @@ def _run_analysis(
 @router.post("/analyze")
 async def analyze_video(
     file: UploadFile = File(...),
-    current_user=Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
 ) -> Dict[str, str]:
     """
     Accept a multipart video upload, save it, kick off background analysis,
     and return the job_id for polling.
     """
-    logger.info(f"Analyze endpoint called. Current user: {current_user}")
-    if current_user:
-        logger.info(f"  User ID: {current_user.id}, Email: {current_user.email}")
-    else:
-        logger.info("  No user logged in (anonymous analysis)")
+    logger.info(f"Analyze endpoint called for user_id={current_user.id}, email={current_user.email}")
     
     suffix = Path(file.filename or "video.mp4").suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
@@ -161,19 +150,23 @@ async def analyze_video(
                 raise HTTPException(status_code=413, detail="File too large (max 500 MB).")
             f.write(chunk)
 
-    job_store.create(job_id, video_path)
-    job_store.update(job_id, output_dir=output_dir)
-
-    # Submit to thread pool (non-blocking for the event loop)
-    user_id = current_user.id if current_user else None
-    executor.submit(
-        _run_analysis,
+    job_store.create(
         job_id,
         video_path,
-        output_dir,
-        user_id,
-        file.filename or "",
+        output_dir=output_dir,
+        user_id=current_user.id,
+        video_filename=file.filename or "",
     )
+
+    if ANALYSIS_EXECUTION_MODE == "local":
+        executor.submit(
+            _run_analysis,
+            job_id,
+            video_path,
+            output_dir,
+            current_user.id,
+            file.filename or "",
+        )
 
     return {"job_id": job_id}
 
@@ -251,11 +244,5 @@ async def delete_job(job_id: str) -> Dict[str, str]:
         raise HTTPException(status_code=404, detail="Job not found.")
     if job["status"] == "running":
         raise HTTPException(status_code=409, detail="Cannot delete a running job.")
-    output_dir = job.get("output_dir")
-    if output_dir:
-        import shutil
-        shutil.rmtree(output_dir, ignore_errors=True)
-    # Remove from store
-    with job_store._lock:
-        job_store._store.pop(job_id, None)
+    job_store.delete(job_id)
     return {"detail": "Job deleted."}

@@ -61,3 +61,36 @@ class SwingSession(Base):
             return json.loads(self.report_json)
         except Exception:
             return {}
+
+
+class AnalysisJob(Base):
+    __tablename__ = "analysis_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(String(100), unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    video_filename = Column(String(255), nullable=True)
+    video_path = Column(String(500), nullable=False)
+    output_dir = Column(String(500), nullable=True)
+    status = Column(String(20), nullable=False, default="pending", index=True)
+    progress = Column(Integer, nullable=False, default=0)
+    report_json = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    worker_id = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    user = relationship("User")
+
+    @property
+    def report(self) -> dict:
+        if not self.report_json:
+            return {}
+        try:
+            return json.loads(self.report_json)
+        except Exception:
+            return {}

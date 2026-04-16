@@ -40,6 +40,7 @@ from backend.routers import analysis as analysis_router
 from backend.routers import live as live_router
 from backend.routers import auth as auth_router
 from backend.routers import sessions as sessions_router
+from backend.routers import worker as worker_router
 from backend.database import init_db
 
 import logging
@@ -88,6 +89,7 @@ app.include_router(analysis_router.router, prefix="/api")
 app.include_router(live_router.router, prefix="/api")
 app.include_router(auth_router.router, prefix="/api")
 app.include_router(sessions_router.router, prefix="/api")
+app.include_router(worker_router.router, prefix="/api")
 
 
 @app.middleware("http")
