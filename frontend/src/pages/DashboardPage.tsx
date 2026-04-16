@@ -211,7 +211,7 @@ export default function DashboardPage() {
                           color: "#fff",
                           fontSize: 12,
                         }}
-                        formatter={(v: number) => [`${v}`, "Score"]}
+                        formatter={(value) => [String(value ?? 0), "Score"]}
                       />
                       <Line
                         type="monotone"
@@ -263,7 +263,7 @@ export default function DashboardPage() {
                           color: "#fff",
                           fontSize: 12,
                         }}
-                        formatter={(v: number) => [`${v}×`, "Occurrences"]}
+                        formatter={(value) => [`${value ?? 0}×`, "Occurrences"]}
                       />
                       <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                         {stats.fault_frequency.map((_, i) => (
