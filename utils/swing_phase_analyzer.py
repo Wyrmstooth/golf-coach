@@ -81,42 +81,23 @@ class SwingPhaseAnalyzer:
         # Find TOP position (lowest wrist point in backswing)
         top_range = self._find_top_phase(smoothed_wrist, swing_start, swing_end, wrist_y)
         
-        # Compute address wrist level from the isolated address region, not the
-        # entire pre-swing prefix, which can include early takeaway motion.
-        address_slice = smoothed_wrist[address_start:address_end + 1]
-        if len(address_slice) == 0 or np.all(np.isnan(address_slice)):
-            address_slice = smoothed_wrist[:max(1, swing_start)]
-        address_y_level = float(np.nanmedian(address_slice))
+        # Compute address wrist level (median of address region)
+        address_y_level = float(np.nanmedian(smoothed_wrist[:max(1, swing_start)]))
         
         # Find IMPACT position (wrist returns to address level after TOP)
         impact_range = self._find_impact_phase(smoothed_wrist, top_range, swing_end, address_y_level)
         
-        # Build non-overlapping phase ranges. The previous implementation reused
-        # boundary frames across adjacent phases, which let ADDRESS/BACKSWING
-        # labels bleed into each other and contaminated per-phase aggregates.
-        address_end = max(address_start, min(address_end, max(0, swing_start - 1)))
-
-        backswing_start = min(max(0, swing_start), swing_end)
-        backswing_end = max(backswing_start, min(max(backswing_start, top_range[0]) - 1, swing_end))
-
-        top_start = max(backswing_start, min(top_range[0], swing_end))
-        top_end = max(top_start, min(top_range[1], swing_end))
-
-        downswing_start = min(swing_end, top_end + 1)
-        downswing_end = max(downswing_start, min(max(downswing_start, impact_range[0]) - 1, swing_end))
-
-        impact_start = max(downswing_start, min(impact_range[0], swing_end))
-        impact_end = max(impact_start, min(impact_range[1], swing_end))
-
-        follow_start = min(swing_end, impact_end + 1)
-
+        # Define all phase ranges with proper ordering
+        backswing_end = max(swing_start + 1, top_range[0])  # Ensure positive duration
+        downswing_end = max(top_range[1] + 1, impact_range[0])
+        
         phase_ranges = {
             "ADDRESS": (address_start, address_end),
-            "BACKSWING": (backswing_start, backswing_end),
-            "TOP": (top_start, top_end),
-            "DOWNSWING": (downswing_start, downswing_end),
-            "IMPACT": (impact_start, impact_end),
-            "FOLLOW_THROUGH": (follow_start, swing_end)
+            "BACKSWING": (swing_start, backswing_end),
+            "TOP": (backswing_end, max(backswing_end + 1, top_range[1])),
+            "DOWNSWING": (max(backswing_end + 1, top_range[1]), downswing_end),
+            "IMPACT": (downswing_end, max(downswing_end + 1, impact_range[1])),
+            "FOLLOW_THROUGH": (max(downswing_end + 1, impact_range[1]), swing_end)
         }
         
         return phase_ranges, swing_start, swing_end, wrist_y, smoothed_wrist
@@ -177,29 +158,22 @@ class SwingPhaseAnalyzer:
         """
         Locate swing start/end.
         
-        Swing START: wrist position deviation from address baseline,
-        using a PROPORTIONAL threshold (% of total wrist range) to avoid
-        triggering on idle body sway in slow-tempo swings.
+        Swing START: two-pass approach.
+          1) Forward scan from a small adaptive baseline for wrist deviation.
+          2) Backward scan from wrist-minimum (TOP approximation) to find
+             the last quiet frame — acts as a safety net when the forward
+             scan triggers too late.
         
         Swing END: motion energy decay after peak activity.
         """
         n = len(smoothed_wrist)
-        if n == 0:
-            return 0, 0
-
-        initial_address_end = self._estimate_initial_address_end(
-            motion_energy,
-            smoothed_wrist,
-            precheck_window,
-        )
-        baseline_end = min(n - 1, max(2, initial_address_end))
-        search_start = min(n - 1, baseline_end + 1)
+        
+        # Adaptive baseline: use a small initial window, not the full precheck_window
+        # For short videos the golfer may start swinging almost immediately
+        baseline_len = min(precheck_window, max(5, n // 10))
 
         # ---- SWING END via motion energy ----
-        valid_motion = motion_energy[search_start:]
-        if len(valid_motion) == 0:
-            return 0, n - 1
-
+        valid_motion = motion_energy[baseline_len:]
         median = np.nanmedian(valid_motion)
         std = np.nanstd(valid_motion) + 1e-3
         high_thresh = median + std * 1.0
@@ -213,87 +187,57 @@ class SwingPhaseAnalyzer:
                 end += 1
             swing_end = min(n - 1, end + 2)
 
-        # ---- SWING START via adaptive address baseline + multi-signal onset ----
-        address_window = smoothed_wrist[:baseline_end + 1]
-        address_y = np.nanmedian(address_window)
-        address_std = np.nanstd(address_window) + 1e-3
+        # ---- SWING START ----
+        # Pass 1: forward scan from baseline for wrist deviation
+        address_y = np.nanmedian(smoothed_wrist[:baseline_len])
+        address_std = np.nanstd(smoothed_wrist[:baseline_len]) + 1e-3
 
-        address_motion = motion_energy[:baseline_end + 1]
-        motion_median = np.nanmedian(address_motion)
-        motion_mad = np.nanmedian(np.abs(address_motion - motion_median)) + 1e-3
-
-        # Use backswing range for proportional threshold
-        search_slice = smoothed_wrist[search_start:swing_end + 1]
-        if len(search_slice) == 0 or np.all(np.isnan(search_slice)):
-            search_slice = smoothed_wrist
-
-        wrist_range = abs(address_y - np.nanmin(search_slice))
+        wrist_range = abs(address_y - np.nanmin(smoothed_wrist))
         if wrist_range < 10:
-            wrist_range = abs(np.nanmax(search_slice) - np.nanmin(search_slice))
+            wrist_range = abs(np.nanmax(smoothed_wrist) - np.nanmin(smoothed_wrist))
 
-        # Allow earlier takeaways while still resisting idle sway.
-        dev_threshold = max(address_std * 2.5, wrist_range * 0.04, 4.0)
-        motion_threshold = motion_median + motion_mad * 4.0
+        # 3% of wrist range or 3× address noise, whichever is LARGER,
+        # capped at 5% of wrist range to prevent over-delay on large ranges
+        dev_threshold = max(address_std * 3.0, wrist_range * 0.03, 3.0)
+        dev_threshold = min(dev_threshold, wrist_range * 0.05 + 1.0)
         min_consecutive = 3
-        swing_start = search_start
+        forward_start = max(0, swing_end - 10)  # fallback
 
-        for i in range(max(1, baseline_end - 1), swing_end - min_consecutive + 1):
-            displacement = abs(smoothed_wrist[i] - address_y)
-            motion_hit = motion_energy[i] > motion_threshold
-            trigger = displacement > dev_threshold or (motion_hit and displacement > dev_threshold * 0.5)
-            if trigger:
-                sustained = True
-                for j in range(1, min_consecutive):
-                    future_displacement = abs(smoothed_wrist[i + j] - address_y)
-                    future_motion = motion_energy[i + j] > motion_threshold * 0.85
-                    if not (future_displacement > dev_threshold * 0.65 or future_motion):
-                        sustained = False
-                        break
+        for i in range(baseline_len, swing_end - min_consecutive):
+            if abs(smoothed_wrist[i] - address_y) > dev_threshold:
+                sustained = all(
+                    abs(smoothed_wrist[i + j] - address_y) > dev_threshold * 0.7
+                    for j in range(1, min_consecutive)
+                )
                 if sustained:
-                    swing_start = i
+                    forward_start = i
                     break
 
-        return max(0, min(swing_start, swing_end)), swing_end
+        # Pass 2: backward scan from wrist minimum (TOP approximation)
+        # This catches cases where forward scan triggered too late
+        wrist_min_idx = int(np.nanargmin(smoothed_wrist[:swing_end]))
+        velocity = np.abs(np.gradient(smoothed_wrist))
+        vel_median = np.nanmedian(velocity[:baseline_len]) if baseline_len > 0 else 1.0
+        quiet_thresh = max(vel_median * 2.5, 1.0)
 
-    def _estimate_initial_address_end(
-        self,
-        motion_energy: np.ndarray,
-        smoothed_wrist: np.ndarray,
-        precheck_window: int,
-    ) -> int:
-        """Estimate the end of the initial static address hold.
+        backward_start = wrist_min_idx
+        for i in range(wrist_min_idx, 0, -1):
+            if velocity[i] < quiet_thresh:
+                # Check if this is sustained quiet (3+ frames)
+                quiet_count = 0
+                for j in range(i, max(0, i - 4), -1):
+                    if velocity[j] < quiet_thresh:
+                        quiet_count += 1
+                if quiet_count >= 3:
+                    backward_start = i + 1
+                    break
 
-        The old implementation assumed the first ``precheck_window`` frames were
-        all address, which fails on clips where takeaway starts early. Here we
-        seed from the first few frames and extend the address region only while
-        both motion energy and wrist displacement remain stable.
-        """
-        n = len(smoothed_wrist)
-        if n == 0:
-            return 0
+        # Use the EARLIER of the two estimates (more conservative)
+        swing_start = min(forward_start, backward_start)
+        # But never before actual baseline
+        swing_start = max(1, swing_start)
 
-        scan_end = min(n - 1, max(5, min(precheck_window, max(8, n // 5))))
-        seed_len = min(scan_end + 1, max(5, min(10, max(3, scan_end // 2 + 1))))
-
-        seed_wrist = smoothed_wrist[:seed_len]
-        seed_motion = motion_energy[:seed_len]
-
-        address_y = np.nanmedian(seed_wrist)
-        address_std = np.nanstd(seed_wrist) + 1e-3
-        motion_median = np.nanmedian(seed_motion)
-        motion_mad = np.nanmedian(np.abs(seed_motion - motion_median)) + 1e-3
-
-        stable_end = seed_len - 1
-        for i in range(seed_len, scan_end + 1):
-            recent_motion = np.nanmedian(motion_energy[max(0, i - 1):i + 1])
-            displacement = abs(smoothed_wrist[i] - address_y)
-            if recent_motion > motion_median + motion_mad * 4.0:
-                break
-            if displacement > max(address_std * 3.0, 6.0):
-                break
-            stable_end = i
-
-        return stable_end
+        return swing_start, swing_end
     
     def _find_address_phase(
         self,
@@ -303,14 +247,10 @@ class SwingPhaseAnalyzer:
         min_flat_frames: int = 10
     ) -> Tuple[int, int]:
         """Find ADDRESS phase (static position before swing)"""
-        if swing_start <= 0:
-            return 0, 0
-
-        address_end = max(0, swing_start - 1)
         address_start = 0
         
-        for i in range(address_end - min_flat_frames + 1, 0, -1):
-            window = smoothed[i:address_end + 1]
+        for i in range(swing_start - min_flat_frames, 0, -1):
+            window = smoothed[i:swing_start]
             if np.count_nonzero(~np.isnan(window)) < min_flat_frames:
                 continue
             if np.nanstd(window) < flat_std_thresh:
@@ -318,7 +258,7 @@ class SwingPhaseAnalyzer:
             else:
                 break
         
-        return address_start, address_end
+        return address_start, swing_start
     
     def _find_top_phase(
         self,
@@ -374,16 +314,12 @@ class SwingPhaseAnalyzer:
         address_y: float
     ) -> Tuple[int, int]:
         """
-        Find IMPACT phase (ball contact zone) using velocity-position
-        combined scoring.
+        Find IMPACT phase (ball contact zone).
 
-        True ball contact occurs where both:
-         - wrist has returned near address level (high position score)
-         - wrist is still moving fast (high velocity score)
-
-        The product of normalised velocity × position naturally peaks at
-        the impact zone — too early (high vel, low return) and too late
-        (low vel, high return) both score lower.
+        Impact = wrist returns to ~90% of the way back to address level.
+        At impact the hands are back at ball height; the club face meets
+        the ball.  Falls back to max-position if the crossing is never
+        reached (partial swings / poor tracking).
         """
         post_top_start = top_range[1]
         post_top = smoothed[post_top_start:swing_end]
@@ -391,61 +327,35 @@ class SwingPhaseAnalyzer:
         if len(post_top) < 2 or np.all(np.isnan(post_top)):
             return (post_top_start, post_top_start + 1)
 
-        # TOP wrist level (minimum y = highest point)
         top_y = float(np.nanmin(smoothed[top_range[0]:top_range[1] + 1]))
-
-        # Wrist range from TOP to address
         wrist_excursion = abs(address_y - top_y)
 
-        velocity = np.gradient(post_top)
-
         if wrist_excursion < 5:
-            # Wrist barely moved — fallback to velocity peak
+            velocity = np.gradient(post_top)
             impact_idx = int(np.nanargmax(np.abs(velocity)))
         else:
-            # Position return: 0 at TOP, 1.0 at address level
             if address_y > top_y:
-                pos_return = (post_top - top_y) / wrist_excursion
-                # Directional velocity: positive = moving TOWARD address
-                dir_vel = np.clip(velocity, 0, None)
-            else:
-                pos_return = (top_y - post_top) / wrist_excursion
-                dir_vel = np.clip(-velocity, 0, None)
-            pos_return = np.clip(pos_return, 0.0, 1.2)
-
-            # Normalised directional velocity (0..1)
-            max_dv = np.nanmax(dir_vel)
-            vel_norm = dir_vel / (max_dv + 1e-6)
-
-            # Combined score: product peaks where BOTH are high
-            combined = vel_norm * np.clip(pos_return, 0.0, 1.0)
-
-            # Gate: skip first 25% of downswing (still in backswing transition)
-            gate = max(1, len(post_top) // 4)
-            combined[:gate] = 0.0
-
-            impact_idx = int(np.nanargmax(combined))
-
-            # Safety: if the best frame is below 50% return, fall back
-            # to the 90%-crossing method (position is more reliable)
-            if pos_return[impact_idx] < 0.50:
-                crossing_idx = None
+                crossing = top_y + wrist_excursion * 0.90
+                impact_idx = None
                 for i in range(len(post_top)):
-                    if pos_return[i] >= 0.90:
-                        crossing_idx = i
+                    if post_top[i] >= crossing:
+                        impact_idx = i
                         break
-                if crossing_idx is not None:
-                    impact_idx = crossing_idx
-                else:
-                    # Never crossed — use highest position
-                    impact_idx = int(np.nanargmax(pos_return))
+            else:
+                crossing = top_y - wrist_excursion * 0.90
+                impact_idx = None
+                for i in range(len(post_top)):
+                    if post_top[i] <= crossing:
+                        impact_idx = i
+                        break
 
-        # Narrow impact window: ±2 frames
+            if impact_idx is None:
+                impact_idx = int(np.nanargmax(post_top) if address_y > top_y
+                                 else np.nanargmin(post_top))
+
         left = max(0, impact_idx - 2)
         right = min(len(post_top) - 1, impact_idx + 2)
-
-        impact_range = (post_top_start + left, post_top_start + right)
-        return impact_range
+        return (post_top_start + left, post_top_start + right)
     
     def get_phase_at_frame(self, frame_idx: int, phase_ranges: Dict[str, Tuple[int, int]]) -> str:
         """
