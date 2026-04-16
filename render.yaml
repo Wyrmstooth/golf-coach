@@ -18,7 +18,15 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: ALLOWED_ORIGINS
-        value: https://golfcoach-frontend.onrender.com
+        value: https://golf-coach-frontend.onrender.com
+
+  - type: static_site
+    name: golfcoach-frontend
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    buildEnvVars:
+      - key: VITE_API_URL
+        value: https://golf-dashboard-vmqd.onrender.com/api
 
 databases:
   - name: golfcoach-db
