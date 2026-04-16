@@ -1,6 +1,28 @@
 import axios from "axios";
 
-const API = "http://localhost:8000/api";
+// Determine API base URL: use VITE_API_URL if set, otherwise detect from window.location
+const getApiBase = () => {
+  // In production (Render), both frontend and backend serve from different onrender.com subdomains
+  // The frontend build can inject VITE_API_URL via environment variable
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Local development: assume backend is on localhost:8000
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:8000/api';
+  }
+  
+  // Production: construct backend URL from frontend URL
+  // If frontend is at https://golfcoach-frontend.onrender.com,
+  // backend is at https://golfcoach-backend.onrender.com
+  const protocol = window.location.protocol; // https: or http:
+  const host = window.location.host; // golfcoach-frontend.onrender.com
+  const backendHost = host.replace('frontend', 'backend');
+  return `${protocol}//${backendHost}/api`;
+};
+
+const API = getApiBase();
 
 export interface UserOut {
   id: number;
