@@ -8,9 +8,9 @@ interface Props {
 }
 
 function getColor(score: number): string {
-  if (score >= 70) return "#16a34a"; // green
-  if (score >= 40) return "#ca8a04"; // amber
-  return "#ef4444";                   // red
+  if (score <= 30) return "#16a34a"; // green - excellent
+  if (score <= 50) return "#ca8a04"; // amber - good
+  return "#ef4444";                   // red - needs work
 }
 
 function getLabel(quality: string): { bg: string; text: string } {
@@ -21,10 +21,10 @@ function getLabel(quality: string): { bg: string; text: string } {
 }
 
 function getTip(score: number): string {
-  if (score >= 85) return "Tour-level mechanics. Minor tweaks can get you to elite.";
-  if (score >= 70) return "Strong fundamentals. Focus on the critical faults listed below.";
-  if (score >= 50) return "Solid base with some key issues. Work on one fault at a time.";
-  if (score >= 30) return "Several significant faults detected. Consider a lesson to build correct patterns.";
+  if (score <= 15) return "Tour-level mechanics. Minimal faults detected.";
+  if (score <= 30) return "Strong fundamentals. Only minor adjustments needed.";
+  if (score <= 50) return "Solid swing with some key issues. Work on critical faults listed below.";
+  if (score <= 70) return "Several significant faults detected. Consider professional coaching.";
   return "Major swing rebuilding needed. Start with address posture and grip fundamentals.";
 }
 

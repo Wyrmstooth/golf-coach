@@ -38,10 +38,10 @@ const SEVERITY_BG: Record<string, string> = {
 };
 
 function scoreColor(score: number): string {
-  if (score >= 80) return "#16a34a";
-  if (score >= 60) return "#ca8a04";
-  if (score >= 40) return "#f97316";
-  return "#ef4444";
+  if (score <= 25) return "#16a34a";  // green - excellent
+  if (score <= 45) return "#ca8a04";  // amber - good
+  if (score <= 65) return "#f97316";  // orange - fair
+  return "#ef4444";                   // red - needs work
 }
 
 export default function PhaseTimeline({ phaseRanges, phaseFaultSummary, fps = 30, videoRef }: Props) {
