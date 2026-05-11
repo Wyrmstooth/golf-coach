@@ -37,7 +37,6 @@ from utils.swing_phase_analyzer import SwingPhaseAnalyzer
 from utils.feature_extractor import FeatureExtractor
 from utils.video_processor import VideoProcessor
 from utils.visualizer import SwingVisualizer
-from utils.rule_based_faults import RuleBasedFaultDetector
 from models.fault_detector import FaultDetector
 from models.performance_predictor import PerformancePredictor
 from models.ball_detector import BallDetector
@@ -257,74 +256,84 @@ class MLSwingAnalyzer:
             print(f"   Extracted features from {valid_features}/{len(frame_data)} frames")
 
         # =====================================================================
-        # STEP 4: Rule-Based + ML Fault Detection (Module 2)
+        # STEP 4: ML Fault Detection (Module 2)
         # =====================================================================
         _progress(63)
         if verbose:
-            print("\n[4/6] Detecting faults using biomechanical rules + ML...")
+            print("\n[4/6] Detecting faults using ML...")
 
-        # ── Rule-based geometric fault detection (always runs) ──────────────
-        rule_detector = RuleBasedFaultDetector()
-        rule_results = rule_detector.detect(
-            landmarks_sequence, phase_ranges, frame_width, frame_height
-        )
-
-        fault_results = rule_results
-
-        # ── Optional: blend with ML model if available ──────────────────────
+        fault_results = None
         if self.fault_detector:
+            # Use cached landmarks + detected phase ranges (single-pass, no re-processing)
             caddieset_features = self.caddieset_extractor.extract_from_landmarks(
                 landmarks_sequence, phase_ranges, frame_height, frame_width
             )
-            ml_score, ml_messages, ml_details = self.fault_detector.predict(caddieset_features)
+            
+            # Predict using CaddieSet-compatible features
+            score, messages, details = self.fault_detector.predict(caddieset_features)
+            
+            # Convert fault score (0-100, higher=more faults) to swing score (0-100, higher=better)
+            swing_score = max(0, min(100, 100 - score))
+            
+            fault_results = {
+                'overall_score': round(swing_score, 1),
+                'details': details,
+                'messages': messages
+            }
 
-            # Blend scores: 70% rule-based, 30% ML (rule-based is more reliable)
-            blended_score = round(0.7 * rule_results['overall_score'] + 0.3 * ml_score, 1)
-            fault_results['overall_score'] = blended_score
-
-            # Use rule-based details (interpretable) but keep ML as supplement
-            fault_results['ml_score'] = ml_score
-            fault_results['ml_messages'] = ml_messages
-
-        if verbose:
-            score = fault_results['overall_score']
-            print(f"\n⚠️  Fault Analysis:")
-            print(f"   Overall Fault Score: {score:.1f}/100")
-            print(f"   (Higher score = more faults detected)")
-
-            if score >= 55:
-                print("   ❌ Significant technique issues detected!")
-            elif score >= 38:
-                print("   ⚠️ Several technique issues found - needs improvement")
-            elif score >= 25:
-                print("   ✓ Minor form variations - acceptable technique")
+            # Interpret the score (higher = better swing)
+            if swing_score >= 85:
+                swing_quality = "Excellent"
+            elif swing_score >= 70:
+                swing_quality = "Good"
+            elif swing_score >= 50:
+                swing_quality = "Fair"
             else:
-                print("   ✅ Professional-level technique!")
+                swing_quality = "Needs Work"
+            fault_results['swing_quality'] = swing_quality
 
-            details = fault_results.get('details', {})
-            if details.get('summary', {}).get('total_faults', 0) > 0:
-                summary = details['summary']
-                print(f"\n   📊 Fault Summary:")
-                print(f"      Total: {summary['total_faults']} issues found")
-                if summary['critical_count'] > 0:
-                    print(f"      🔴 Critical: {summary['critical_count']}")
-                if summary['major_count'] > 0:
-                    print(f"      🟠 Major: {summary['major_count']}")
-                if summary['minor_count'] > 0:
-                    print(f"      🟡 Minor: {summary['minor_count']}")
-
-                print(f"\n   📍 Issues by Phase:")
-                phase_order = ['ADDRESS', 'BACKSWING', 'TOP', 'DOWNSWING', 'IMPACT', 'FOLLOW_THROUGH']
-                for phase in phase_order:
-                    phase_faults = details.get('by_phase', {}).get(phase, [])
-                    if phase_faults:
-                        print(f"\n      {phase}:")
-                        for fault in phase_faults:
-                            severity_emoji = {'critical': '🔴', 'major': '🟠', 'minor': '🟡'}
-                            emoji = severity_emoji.get(fault['severity'], '⚠️')
-                            print(f"         {emoji} {fault['title']}")
-                            print(f"            Issue: {fault['description']}")
-                            print(f"            Fix: {fault['fix']}")
+            if verbose:
+                print(f"\n⚠️  Fault Analysis:")
+                print(f"   Swing Quality Score: {fault_results['overall_score']:.1f}/100")
+                print(f"   (Higher score = better swing)")
+                
+                if swing_score >= 85:
+                    print("   ✅ Professional-level technique!")
+                elif swing_score >= 70:
+                    print("   ✓ Good technique with minor improvements possible")
+                elif swing_score >= 50:
+                    print("   ⚠️ Several technique issues found - needs improvement")
+                else:
+                    print("   ❌ Significant technique issues detected!")
+                
+                # Show fault summary by severity
+                if details.get('summary', {}).get('total_faults', 0) > 0:
+                    summary = details['summary']
+                    print(f"\n   📊 Fault Summary:")
+                    print(f"      Total: {summary['total_faults']} issues found")
+                    if summary['critical_count'] > 0:
+                        print(f"      🔴 Critical: {summary['critical_count']}")
+                    if summary['major_count'] > 0:
+                        print(f"      🟠 Major: {summary['major_count']}")
+                    if summary['minor_count'] > 0:
+                        print(f"      🟡 Minor: {summary['minor_count']}")
+                    
+                    # Show faults grouped by phase
+                    print(f"\n   📍 Issues by Phase:")
+                    phase_order = ['ADDRESS', 'BACKSWING', 'TOP', 'DOWNSWING', 'IMPACT', 'FOLLOW_THROUGH']
+                    for phase in phase_order:
+                        phase_faults = details.get('by_phase', {}).get(phase, [])
+                        if phase_faults:
+                            print(f"\n      {phase}:")
+                            for fault in phase_faults:
+                                severity_emoji = {'critical': '🔴', 'major': '🟠', 'minor': '🟡'}
+                                emoji = severity_emoji.get(fault['severity'], '⚠️')
+                                print(f"         {emoji} {fault['title']}")
+                                print(f"            Issue: {fault['description']}")
+                                print(f"            Fix: {fault['fix']}")
+        else:
+            if verbose:
+                print("   ⚠️  Fault detector not loaded - skipping")
 
         # =====================================================================
         # STEP 5: ML Performance Prediction (Module 2)

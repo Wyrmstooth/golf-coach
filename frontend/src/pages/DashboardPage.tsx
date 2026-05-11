@@ -40,8 +40,8 @@ function StatCard({
 function ScoreChip({ score }: { score: number | null }) {
   if (score === null) return <span className="text-white/20 text-xs">—</span>;
   const color =
-    score <= 30 ? "text-golf-green bg-golf-green/10 border-golf-green/20"
-    : score <= 50 ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
+    score >= 70 ? "text-golf-green bg-golf-green/10 border-golf-green/20"
+    : score >= 50 ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
     : "text-red-400 bg-red-500/10 border-red-500/20";
   return (
     <span className={`text-xs font-bold px-2 py-0.5 rounded-full border tabular-nums ${color}`}>
@@ -155,14 +155,14 @@ export default function DashboardPage() {
                 icon={BarChart2}
                 label="Avg Score"
                 value={stats.avg_score != null ? `${stats.avg_score}` : "—"}
-                sub="Faults (lower is better)"
-                color={stats.avg_score != null && stats.avg_score <= 30 ? "text-golf-green" : "text-amber-400"}
+                sub="Swing quality (higher is better)"
+                color={stats.avg_score != null && stats.avg_score >= 70 ? "text-golf-green" : "text-amber-400"}
               />
               <StatCard
                 icon={Trophy}
                 label="Best Score"
                 value={stats.best_score != null ? `${stats.best_score}` : "—"}
-                sub="Lowest (best) fault score"
+                sub="Highest swing quality score"
                 color="text-golf-green"
               />
               <StatCard
