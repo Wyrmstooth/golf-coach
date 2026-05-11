@@ -6,6 +6,7 @@ import PageWrapper from "../components/layout/PageWrapper";
 import CameraFeed from "../components/live/CameraFeed";
 import AddressMetrics from "../components/live/AddressMetrics";
 import LiveSwingRecorder from "../components/live/LiveSwingRecorder";
+import VoiceCoach from "../components/live/VoiceCoach";
 import { useLiveAddress } from "../hooks/useLiveAddress";
 
 type Tab = "address" | "swing";
@@ -135,16 +136,19 @@ export default function LivePage() {
           <div className="space-y-4">
             {tab === "address" ? (
               <>
-                <h3 className="text-sm font-semibold text-white/60 uppercase tracking-widest">
-                  Real-time Feedback
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white/60 uppercase tracking-widest">
+                    Real-time Feedback
+                  </h3>
+                  <VoiceCoach feedback={feedback} connected={connected} />
+                </div>
                 <AddressMetrics feedback={feedback} connected={connected} poseHoldMs={poseHoldMs} />
                 <div className="glass rounded-xl p-4 text-xs text-white/40 space-y-1 leading-relaxed">
                   <p className="font-semibold text-white/60">How to use:</p>
-                  <p>1. Start your camera</p>
+                  <p>1. Start your camera and enable <span className="text-golf-green/70">Voice Coach</span> for hands-free guidance</p>
                   <p>2. Stand in your address position, facing the camera</p>
                   <p>3. Get real-time feedback on your spine, knee, and arm angles</p>
-                  <p>4. Adjust until all metrics show green</p>
+                  <p>4. Adjust until all metrics show green — voice will confirm when ready</p>
                 </div>
               </>
             ) : (
