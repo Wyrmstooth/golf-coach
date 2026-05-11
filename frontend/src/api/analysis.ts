@@ -96,7 +96,7 @@ export async function getReport(jobId: string): Promise<AnalysisReport> {
 }
 
 export function getFileUrl(jobId: string, filename: string): string {
-  return `${getApiBase()}/files/${jobId}/${filename}`;
+  return `/api/files/${jobId}/${filename}`;
 }
 
 export interface JobSummary {

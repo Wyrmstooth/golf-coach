@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RotateCcw, Image, Target, AlertCircle, RefreshCw, Clock, TrendingUp, Camera } from "lucide-react";
+import { RotateCcw, Image, Target, AlertCircle, RefreshCw, Clock, TrendingUp, Camera, ShieldCheck } from "lucide-react";
 
 import PageWrapper from "../components/layout/PageWrapper";
 import VideoDropzone from "../components/upload/VideoDropzone";
@@ -17,30 +17,31 @@ import { uploadVideo } from "../api/analysis";
 import { getFileUrl } from "../api/analysis";
 import { useAnalysisJob } from "../hooks/useAnalysisJob";
 import { useAppStore } from "../store/appStore";
+import { validateVideo } from "../api/admin";
+import type { VideoValidation } from "../api/admin";
 
-type Phase = "idle" | "analyzing" | "done" | "error";
+type Phase = "idle" | "validating" | "validated" | "analyzing" | "done" | "error";
 
 export default function AnalyzePage() {
   const [file, setFile] = useState<File | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [validation, setValidation] = useState<VideoValidation | null>(null);
   const { jobId, setJobId, report, reset } = useAppStore();
   const { status, progress, error: jobError } = useAnalysisJob(jobId);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Transition to done when report arrives
   if (phase === "analyzing" && status === "done" && report) {
     setPhase("done");
   }
 
-  // Transition to error when job fails
   if (phase === "analyzing" && status === "error") {
     setPhase("error");
     if (!errorMsg) {
       setErrorMsg(
         typeof jobError === "string"
           ? jobError
-          : jobError?.message ?? "Analysis failed. The backend may be missing required ML packages (scikit-learn, opencv, mediapipe)."
+          : jobError?.message ?? "Analysis failed. The backend may be missing required ML packages."
       );
     }
   }
@@ -49,16 +50,24 @@ export default function AnalyzePage() {
     if (!file) return;
     reset();
     setErrorMsg(null);
-    setPhase("analyzing");
+    setValidation(null);
+
+    setPhase("validating");
     try {
+      const v = await validateVideo(file);
+      setValidation(v);
+      setPhase("validated");
+
+      await new Promise((r) => setTimeout(r, 800));
+
+      setPhase("analyzing");
       const { job_id } = await uploadVideo(file);
       setJobId(job_id);
     } catch (err: any) {
       console.error(err);
+      const detail = err?.response?.data?.detail ?? err?.message;
       setErrorMsg(
-        err?.response?.data?.detail ??
-          err?.message ??
-          "Failed to upload video. Make sure the backend is running on port 8000."
+        detail ?? "Failed to process video. Make sure the backend is running on port 8000."
       );
       setPhase("error");
     }
@@ -68,6 +77,7 @@ export default function AnalyzePage() {
     reset();
     setFile(null);
     setErrorMsg(null);
+    setValidation(null);
     setPhase("idle");
   };
 
@@ -98,24 +108,24 @@ export default function AnalyzePage() {
 
   return (
     <PageWrapper className="bg-golf-navy">
-      <div className="max-w-7xl mx-auto px-6 py-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10"
+          className="mb-8 sm:mb-10"
         >
-          <h1 className="font-display text-4xl font-bold">
+          <h1 className="font-display text-3xl sm:text-4xl font-bold">
             Swing <span className="text-gradient">Analysis</span>
           </h1>
-          <p className="text-white/40 mt-2">
+          <p className="text-white/40 mt-2 text-sm sm:text-base">
             Upload your golf swing video and get an AI-powered biomechanical report.
           </p>
         </motion.div>
 
         <AnimatePresence mode="wait">
-          {/* IDLE */}
-          {phase === "idle" && (
+          {/* IDLE / VALIDATING / VALIDATED */}
+          {(phase === "idle" || phase === "validating" || phase === "validated") && (
             <motion.div
               key="idle"
               initial={{ opacity: 0, y: 16 }}
@@ -123,23 +133,70 @@ export default function AnalyzePage() {
               exit={{ opacity: 0, y: -16 }}
               className="max-w-2xl mx-auto space-y-6"
             >
-              <VideoDropzone onFile={setFile} />
-              <motion.button
-                whileHover={file ? { scale: 1.03, boxShadow: "0 0 32px rgba(22,163,74,0.5)" } : {}}
-                whileTap={file ? { scale: 0.97 } : {}}
-                onClick={handleAnalyze}
-                disabled={!file}
-                className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
-                  file
-                    ? "bg-golf-green text-white shadow-glow hover:bg-green-500"
-                    : "bg-white/5 text-white/30 cursor-not-allowed"
-                }`}
-              >
-                Analyze My Swing
-              </motion.button>
-              <p className="text-center text-xs text-white/25">
-                Analysis takes 30–120 seconds depending on video length.
-              </p>
+              {phase === "idle" && (
+                <>
+                  <VideoDropzone onFile={setFile} />
+                  <motion.button
+                    whileHover={file ? { scale: 1.03, boxShadow: "0 0 32px rgba(22,163,74,0.5)" } : {}}
+                    whileTap={file ? { scale: 0.97 } : {}}
+                    onClick={handleAnalyze}
+                    disabled={!file}
+                    className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
+                      file
+                        ? "bg-golf-green text-white shadow-glow hover:bg-green-500"
+                        : "bg-white/5 text-white/30 cursor-not-allowed"
+                    }`}
+                  >
+                    Analyze My Swing
+                  </motion.button>
+                  <p className="text-center text-xs text-white/25">
+                    Video is first validated to confirm it contains a golf swing. Full analysis takes 30–120 seconds.
+                  </p>
+                </>
+              )}
+
+              {phase === "validating" && (
+                <div className="glass rounded-2xl p-8 text-center space-y-5">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="w-12 h-12 mx-auto border-2 border-golf-green/30 border-t-golf-green rounded-full"
+                  />
+                  <div>
+                    <h3 className="font-display font-bold text-lg text-white mb-1">Validating Video</h3>
+                    <p className="text-white/40 text-sm">
+                      Checking if your video contains a golf swing with detectable poses and keypoints...
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {phase === "validated" && validation && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="glass rounded-2xl p-6 text-center space-y-4 border border-golf-green/20"
+                >
+                  <div className="w-14 h-14 mx-auto rounded-full bg-golf-green/10 flex items-center justify-center">
+                    <ShieldCheck size={28} className="text-golf-green" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-lg text-golf-green mb-1">Video Valid</h3>
+                    <p className="text-white/40 text-sm">
+                      Golf swing detected. {validation.pose_detection_ratio && `Pose confidence: ${(validation.pose_detection_ratio * 100).toFixed(0)}% · `}
+                      {validation.frame_count} frames · {validation.duration_sec}s
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 text-xs text-white/30">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="w-4 h-4 border-2 border-golf-green/30 border-t-golf-green rounded-full"
+                    />
+                    Starting full analysis...
+                  </div>
+                </motion.div>
+              )}
             </motion.div>
           )}
 

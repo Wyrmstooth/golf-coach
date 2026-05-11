@@ -110,12 +110,12 @@ export default function DashboardPage() {
   }, [token]);
 
   return (
-    <div className="min-h-screen bg-golf-navy pt-24 pb-16 px-6">
-      <div className="max-w-6xl mx-auto space-y-8">
+    <div className="min-h-screen bg-golf-navy pt-20 sm:pt-24 pb-16 px-4 sm:px-6">
+      <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8">
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-display font-bold text-3xl text-white">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">
             Welcome back, <span className="text-gradient">{user.display_name.split(" ")[0]}</span>
           </h1>
           <p className="text-white/35 text-sm mt-1">

@@ -48,7 +48,7 @@ export default function VideoDropzone({ onFile, disabled }: Props) {
           >
             <div
               {...getRootProps()}
-              className={`relative cursor-pointer rounded-2xl border-2 border-dashed transition-all duration-300 p-12 text-center ${
+              className={`relative cursor-pointer rounded-2xl border-2 border-dashed transition-all duration-300 p-8 sm:p-12 text-center ${
                 isDragActive
                   ? "border-golf-green bg-golf-green/10 shadow-glow"
                   : "border-white/20 hover:border-golf-green/60 hover:bg-golf-green/5"

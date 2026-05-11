@@ -55,17 +55,17 @@ export default function LivePage() {
 
   return (
     <PageWrapper className="bg-golf-navy">
-      <div className="max-w-7xl mx-auto px-6 py-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="font-display text-4xl font-bold">
+          <h1 className="font-display text-3xl sm:text-4xl font-bold">
             Live <span className="text-gradient">Feedback</span>
           </h1>
-          <p className="text-white/40 mt-2">
+          <p className="text-white/40 mt-2 text-sm sm:text-base">
             Real-time posture correction and swing analysis using your webcam.
           </p>
         </motion.div>

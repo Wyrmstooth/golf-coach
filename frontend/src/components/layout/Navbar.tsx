@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Activity, Camera, Home, LayoutDashboard, LogIn, LogOut, User } from "lucide-react";
-import { useState } from "react";
+import { Activity, Camera, Home, LayoutDashboard, LogIn, LogOut, Menu, User, X, Shield } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useAuthStore } from "../../store/authStore";
 
 const navLinks = [
@@ -10,7 +10,6 @@ const navLinks = [
   { to: "/live", label: "Live", icon: Camera },
 ];
 
-/* Inline golf ball SVG logo with dimple pattern */
 function GolfBallLogo() {
   return (
     <motion.svg
@@ -34,15 +33,10 @@ function GolfBallLogo() {
           <circle cx="6" cy="6" r="1" fill="rgba(0,0,0,0.06)" />
         </pattern>
       </defs>
-      {/* Glow */}
       <circle cx="18" cy="18" r="17" fill="url(#ballGlow)" />
-      {/* Ball body */}
       <circle cx="18" cy="18" r="14" fill="url(#ballGrad)" />
-      {/* Dimples */}
       <circle cx="18" cy="18" r="13" fill="url(#dimples)" />
-      {/* Highlight */}
       <ellipse cx="14" cy="13" rx="5" ry="3.5" fill="rgba(255,255,255,0.4)" transform="rotate(-20 14 13)" />
-      {/* Shadow rim */}
       <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="0.5" />
     </motion.svg>
   );
@@ -51,58 +45,63 @@ function GolfBallLogo() {
 export default function Navbar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const user   = useAuthStore((s) => s.user);
+  const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileOpen(false);
+    setProfileOpen(false);
+  }, [pathname]);
 
   function handleLogout() {
     logout();
     setProfileOpen(false);
+    setMobileOpen(false);
     navigate("/");
   }
 
+  const isActive = (to: string) => pathname === to;
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10">
-      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2.5 group">
+        <Link to="/" className="flex items-center gap-2.5 group flex-shrink-0">
           <GolfBallLogo />
-          <span className="font-display font-bold text-lg tracking-tight">
+          <span className="font-display font-bold text-base sm:text-lg tracking-tight hidden xs:inline">
             Golf<span className="text-gradient">Coach</span>
             <span className="text-xs text-white/40 ml-1 font-normal">AI</span>
           </span>
         </Link>
 
-        {/* Nav Links */}
-        <div className="flex items-center gap-1">
-          {navLinks.map(({ to, label, icon: Icon }) => {
-            const active = pathname === to;
-            return (
-              <Link key={to} to={to}>
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.97 }}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    active
-                      ? "bg-golf-green/20 text-golf-green border border-golf-green/30"
-                      : "text-white/60 hover:text-white hover:bg-white/5"
-                  }`}
-                >
-                  <Icon size={15} />
-                  {label}
-                </motion.div>
-              </Link>
-            );
-          })}
+        {/* Desktop Nav Links */}
+        <div className="hidden md:flex items-center gap-1">
+          {navLinks.map(({ to, label, icon: Icon }) => (
+            <Link key={to} to={to}>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  isActive(to)
+                    ? "bg-golf-green/20 text-golf-green border border-golf-green/30"
+                    : "text-white/60 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <Icon size={15} />
+                {label}
+              </motion.div>
+            </Link>
+          ))}
 
-          {/* Dashboard link when logged in */}
           {user && (
             <Link to="/dashboard">
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.97 }}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  pathname === "/dashboard"
+                  isActive("/dashboard")
                     ? "bg-golf-green/20 text-golf-green border border-golf-green/30"
                     : "text-white/60 hover:text-white hover:bg-white/5"
                 }`}
@@ -112,10 +111,27 @@ export default function Navbar() {
               </motion.div>
             </Link>
           )}
+
+          {user?.is_admin && (
+            <Link to="/admin">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  isActive("/admin")
+                    ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                    : "text-white/50 hover:text-red-400 hover:bg-red-500/5"
+                }`}
+              >
+                <Shield size={15} />
+                Admin
+              </motion.div>
+            </Link>
+          )}
         </div>
 
-        {/* Auth */}
-        <div className="flex items-center gap-2">
+        {/* Desktop Auth */}
+        <div className="hidden md:flex items-center gap-2">
           {user ? (
             <div className="relative">
               <motion.button
@@ -180,7 +196,108 @@ export default function Navbar() {
             </Link>
           )}
         </div>
+
+        {/* Mobile Hamburger */}
+        <div className="md:hidden flex items-center gap-2">
+          {user && (
+            <div className="w-7 h-7 rounded-lg bg-golf-green/20 flex items-center justify-center">
+              <span className="text-golf-green text-[10px] font-bold">
+                {user.avatar_initials ?? user.display_name.slice(0, 2).toUpperCase()}
+              </span>
+            </div>
+          )}
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setMobileOpen((o) => !o)}
+            className="p-2 rounded-xl glass border border-white/10 text-white/60 hover:text-white transition-colors"
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          </motion.button>
+        </div>
       </div>
+
+      {/* Mobile Menu */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden glass border-t border-white/10 overflow-hidden"
+          >
+            <div className="px-4 py-3 space-y-1">
+              {navLinks.map(({ to, label, icon: Icon }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                    isActive(to)
+                      ? "bg-golf-green/20 text-golf-green border border-golf-green/30"
+                      : "text-white/60 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <Icon size={16} />
+                  {label}
+                </Link>
+              ))}
+              {user && (
+                <>
+                  <Link
+                    to="/dashboard"
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                      isActive("/dashboard")
+                        ? "bg-golf-green/20 text-golf-green border border-golf-green/30"
+                        : "text-white/60 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <LayoutDashboard size={16} />
+                    Dashboard
+                  </Link>
+                  <Link
+                    to="/profile"
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-all"
+                  >
+                    <User size={16} />
+                    Profile
+                  </Link>
+                </>
+              )}
+              {user?.is_admin && (
+                <Link
+                  to="/admin"
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                    isActive("/admin")
+                      ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                      : "text-white/50 hover:text-red-400 hover:bg-red-500/5"
+                  }`}
+                >
+                  <Shield size={16} />
+                  Admin Panel
+                </Link>
+              )}
+              <div className="border-t border-white/8 my-2" />
+              {user ? (
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/5 transition-all"
+                >
+                  <LogOut size={16} />
+                  Sign out
+                </button>
+              ) : (
+                <Link
+                  to="/login"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold bg-golf-green/15 text-golf-green border border-golf-green/25 transition-all"
+                >
+                  <LogIn size={16} />
+                  Sign In
+                </Link>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </nav>
   );
 }

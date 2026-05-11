@@ -9,6 +9,8 @@ export interface UserOut {
   display_name: string;
   handicap: number | null;
   avatar_initials: string | null;
+  is_admin: boolean;
+  is_active: boolean;
   created_at: string;
 }
 

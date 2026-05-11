@@ -21,6 +21,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     handicap      = Column(Float, nullable=True)
     avatar_initials = Column(String(4), nullable=True)  # e.g. "JD"
+    is_admin      = Column(Boolean, default=False)
     is_active     = Column(Boolean, default=True)
     created_at    = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

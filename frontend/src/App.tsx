@@ -9,11 +9,11 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import ProfilePage from "./pages/ProfilePage";
+import AdminPage from "./pages/AdminPage";
 
 export default function App() {
   const location = useLocation();
 
-  // Pages that manage their own full-screen layout (no Navbar needed)
   const hideNavbar = ["/login", "/register"].includes(location.pathname);
 
   return (
@@ -53,6 +53,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute adminOnly>
+                <AdminPage />
               </ProtectedRoute>
             }
           />

@@ -237,7 +237,7 @@ export default function LandingPage() {
               <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full glass-green text-golf-green text-xs font-semibold tracking-widest uppercase mb-4">
                 <Zap size={11} /> AI-Powered Golf Coach
               </span>
-              <h1 className="font-display text-5xl lg:text-7xl font-extrabold leading-tight">
+              <h1 className="font-display text-4xl sm:text-5xl lg:text-7xl font-extrabold leading-tight">
                 Elevate Your
                 <br />
                 <span className="text-gradient">Golf Swing</span>
@@ -252,7 +252,7 @@ export default function LandingPage() {
               tracking — all in seconds.
             </motion.p>
 
-            <motion.div variants={itemVariants} className="flex flex-wrap gap-4">
+            <motion.div variants={itemVariants} className="flex flex-col xs:flex-row flex-wrap gap-3 sm:gap-4">
               <motion.button
                 whileHover={{ scale: 1.04, boxShadow: "0 0 30px rgba(22,163,74,0.5)" }}
                 whileTap={{ scale: 0.97 }}

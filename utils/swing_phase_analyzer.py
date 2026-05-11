@@ -40,6 +40,19 @@ class SwingPhaseAnalyzer:
             smoothed: Smoothed wrist Y coordinates
         """
         # Extract primary signals
+        n_frames = len(frame_data)
+        if n_frames < 15:
+            last = max(0, n_frames - 1)
+            empty_phases = {
+                "ADDRESS": (0, last),
+                "BACKSWING": (0, last),
+                "TOP": (0, last),
+                "DOWNSWING": (0, last),
+                "IMPACT": (0, last),
+                "FOLLOW_THROUGH": (0, last),
+            }
+            return empty_phases, 0, last, np.array([]), np.array([])
+
         wrist_y = np.array([
             d.get("wrist_y", np.nan)
             for d in frame_data
@@ -107,6 +120,9 @@ class SwingPhaseAnalyzer:
         if len(signal) == 0:
             return signal
 
+        if len(signal) < 5:
+            return self._fill_nans(signal)
+
         processed = signal.copy()
         processed = self._fill_nans(processed)
 
@@ -138,6 +154,8 @@ class SwingPhaseAnalyzer:
     def _compute_motion_profile(self, wrist: np.ndarray, hip: np.ndarray, shoulder: np.ndarray) -> np.ndarray:
         """Combine multi-signal velocities into a single motion energy curve"""
         def _normalize_derivative(arr: np.ndarray) -> np.ndarray:
+            if len(arr) < 2:
+                return np.zeros_like(arr)
             deriv = np.gradient(arr)
             mad = np.nanmedian(np.abs(deriv - np.nanmedian(deriv))) + 1e-3
             return np.abs(deriv) / mad
