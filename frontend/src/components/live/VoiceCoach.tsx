@@ -11,6 +11,10 @@ function cleanText(text: string): string {
   return text.replace(/[•\-–—*]/g, "").replace(/\s+/g, " ").trim();
 }
 
+const CORRECTION_COOLDOWN = 5000;
+const OVERALL_COOLDOWN = 8000;
+const MAX_COOLDOWNS = 30;
+
 export default function VoiceCoach({ feedback, connected }: Props) {
   const [enabled, setEnabled] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -19,8 +23,7 @@ export default function VoiceCoach({ feedback, connected }: Props) {
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
-  const spokeRef = useRef<Set<string>>(new Set());
-  const lastFeedbackRef = useRef<string | null>(null);
+  const cooldowns = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     const handleVoices = () => {
@@ -38,20 +41,32 @@ export default function VoiceCoach({ feedback, connected }: Props) {
     return () => speechSynthesis.removeEventListener("voiceschanged", handleVoices);
   }, []);
 
-  const speak = useCallback(
+  useEffect(() => {
+    if (enabled) cooldowns.current.clear();
+  }, [enabled]);
+
+  const canSpeak = useCallback(
+    (key: string, cooldownMs: number): boolean => {
+      const now = Date.now();
+      const last = cooldowns.current.get(key) ?? 0;
+      if (now - last < cooldownMs) return false;
+      cooldowns.current.set(key, now);
+      if (cooldowns.current.size > MAX_COOLDOWNS) {
+        const oldest = [...cooldowns.current.entries()]
+          .sort((a, b) => a[1] - b[1])
+          .slice(0, cooldowns.current.size - MAX_COOLDOWNS);
+        oldest.forEach(([k]) => cooldowns.current.delete(k));
+      }
+      return true;
+    },
+    []
+  );
+
+  const speakRaw = useCallback(
     (text: string) => {
       if (!enabled || !text) return;
       const cleaned = cleanText(text);
       if (cleaned.length < 2) return;
-
-      if (spokeRef.current.has(cleaned)) return;
-      spokeRef.current.add(cleaned);
-
-      // Clean up old entries (keep last 10)
-      const entries = Array.from(spokeRef.current);
-      if (entries.length > 10) {
-        spokeRef.current = new Set(entries.slice(-10));
-      }
 
       speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(cleaned);
@@ -75,34 +90,37 @@ export default function VoiceCoach({ feedback, connected }: Props) {
   useEffect(() => {
     if (!feedback || !enabled || !connected) return;
 
-    const status = feedback.status;
     const overall = feedback.overall;
     const corrections = feedback.corrections ?? [];
 
-    // Speak overall status changes
-    if (overall && overall !== lastFeedbackRef.current) {
-      lastFeedbackRef.current = overall;
+    if (overall) {
       if (overall === "GOOD ADDRESS") {
-        speak("Good address position. Hold it right there.");
+        if (canSpeak("good_address", OVERALL_COOLDOWN)) {
+          speakRaw("Good address position. Hold it right there.");
+        }
       } else if (overall !== "DETECTING...") {
-        speak(`Adjust position. ${corrections.length} correction${corrections.length !== 1 ? "s" : ""} needed.`);
+        const key = `adjust_${corrections.length}`;
+        if (corrections.length === 0) {
+          if (canSpeak("no_corrections_generic", OVERALL_COOLDOWN)) {
+            speakRaw("Adjust your position to get into the target range.");
+          }
+        } else if (canSpeak(key, OVERALL_COOLDOWN)) {
+          speakRaw(
+            `Adjust position. ${corrections.length} correction${corrections.length !== 1 ? "s" : ""} needed.`
+          );
+        }
       }
     }
 
-    // Speak individual corrections (only new ones)
     if (corrections.length > 0) {
-      corrections.slice(0, 2).forEach((c) => {
-        if (c && c.trim()) speak(c);
+      corrections.forEach((c) => {
+        const cleaned = cleanText(c);
+        if (cleaned && canSpeak(cleaned, CORRECTION_COOLDOWN)) {
+          speakRaw(cleaned);
+        }
       });
     }
-  }, [feedback, enabled, connected, speak]);
-
-  // Re-speak last on toggle on
-  useEffect(() => {
-    if (enabled && lastSpoken) {
-      spokeRef.current.clear();
-    }
-  }, [enabled]);
+  }, [feedback, enabled, connected, speakRaw, canSpeak]);
 
   return (
     <div className="relative">
@@ -133,7 +151,6 @@ export default function VoiceCoach({ feedback, connected }: Props) {
           </span>
         </motion.button>
 
-        {/* Voice picker */}
         {enabled && voices.length > 1 && (
           <>
             <motion.button
@@ -181,7 +198,6 @@ export default function VoiceCoach({ feedback, connected }: Props) {
         )}
       </div>
 
-      {/* Last spoken bubble */}
       <AnimatePresence>
         {enabled && lastSpoken && speaking && (
           <motion.div
