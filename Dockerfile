@@ -34,8 +34,12 @@ RUN pip install --no-cache-dir --prefer-binary \
 # Copy remaining project files
 COPY . .
 
+# Resolve Git LFS pointer for the ball tracking model.
+# Docker COPY doesn't pull LFS objects, so we download the real binary
+# from GitHub's LFS storage using the batch API.
+RUN python3 scripts/resolve_lfs.py && rm -rf scripts
+
 # Verify the ball tracking model is a real file (not a Git LFS pointer).
-# Git LFS pointer files are ~130 bytes and start with "version ".
 RUN python3 verify_model.py && rm verify_model.py
 
 EXPOSE 8000

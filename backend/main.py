@@ -63,7 +63,7 @@ def on_startup():
 # Get allowed origins from environment or use defaults
 allowed_origins = os.getenv(
     "ALLOWED_ORIGINS",
-    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
+    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000,https://golf-coach-frontend.onrender.com"
 ).split(",")
 
 # Add middleware for CORS

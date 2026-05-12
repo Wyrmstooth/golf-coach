@@ -244,12 +244,13 @@ class VideoProcessor:
             if pose:
                 pose.close()
         
-        print(f"✅ Saved annotated video: {output_path}")
-        if used_codec == "avc1":
-            print(f"   H.264 codec — playable directly in browser")
-        elif used_codec == "mp4v":
-            print(f"   mp4v codec — may require download to play (H.264 DLL not found)")
-        
+        print(f"✅ Saved annotated video: {output_path} (codec={used_codec})")
+
+        # Always re-encode with ffmpeg/H.264 for guaranteed browser playback
+        reencoded = self._reencode_video(output_path)
+        if reencoded != output_path:
+            print(f"   Re-encoded to: {reencoded}")
+
         return output_path
     
     def _add_pose_overlay(self, frame: np.ndarray, pose) -> np.ndarray:
@@ -748,30 +749,32 @@ class VideoProcessor:
         return saved
     
     def _reencode_video(self, video_path: str) -> str:
-        """Re-encode video for better compatibility"""
+        """Re-encode video with ffmpeg/libx264 for browser compatibility."""
+        import shutil
+        if not shutil.which("ffmpeg"):
+            print("⚠️  ffmpeg not found, skipping H.264 re-encode")
+            return video_path
         try:
-            import shutil
-            if shutil.which("ffmpeg"):
-                reencoded_path = video_path.replace(".mp4", "_final.mp4")
-                cmd = [
-                    "ffmpeg", "-y", "-i", video_path,
-                    "-vcodec", "libx264", "-crf", "23", "-preset", "fast",
-                    "-pix_fmt", "yuv420p",
-                    reencoded_path
-                ]
-                
-                print("🔄 Re-encoding for compatibility...")
-                result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                if result.returncode == 0:
-                    print(f"✅ Final video: {reencoded_path}")
-                    return reencoded_path
-                else:
-                    print("⚠️  Re-encoding failed, using original video")
+            tmp_path = video_path.replace(".mp4", "_h264.mp4")
+            cmd = [
+                "ffmpeg", "-y", "-i", video_path,
+                "-vcodec", "libx264", "-crf", "23", "-preset", "fast",
+                "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+                tmp_path,
+            ]
+            print("🔄 Re-encoding with H.264 for browser playback...")
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if result.returncode == 0 and Path(tmp_path).exists() and Path(tmp_path).stat().st_size > 0:
+                Path(video_path).unlink(missing_ok=True)
+                Path(tmp_path).rename(video_path)
+                print(f"✅ H.264 re-encode complete: {video_path}")
+                return video_path
             else:
-                print("⚠️  ffmpeg not found, skipping re-encoding")
+                print(f"⚠️  Re-encoding failed (rc={result.returncode}), keeping OpenCV output")
+                if Path(tmp_path).exists():
+                    Path(tmp_path).unlink(missing_ok=True)
         except Exception as e:
             print(f"⚠️  Re-encoding error: {e}")
-        
         return video_path
     
     def create_video_from_images(
