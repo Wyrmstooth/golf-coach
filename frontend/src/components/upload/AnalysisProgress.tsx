@@ -16,17 +16,14 @@ const STEPS = [
   { label: "Generating report", threshold: 100, icon: "📋" },
 ];
 
-/* Animated golf ball with dimple pattern */
 function GolfBallLoader({ spinning = true }: { spinning?: boolean }) {
   return (
     <div className="relative flex flex-col items-center">
-      {/* Ball shadow */}
       <motion.div
         className="absolute bottom-0 w-12 h-3 rounded-full bg-golf-green/20 blur-sm"
         animate={spinning ? { scaleX: [1, 0.6, 1], opacity: [0.3, 0.15, 0.3] } : {}}
         transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
       />
-      {/* Golf ball */}
       <motion.div
         className="golf-ball"
         style={{ width: 56, height: 56 }}
@@ -45,7 +42,6 @@ function GolfBallLoader({ spinning = true }: { spinning?: boolean }) {
   );
 }
 
-/* Mini golf flag for done state */
 function GolfFlag() {
   return (
     <motion.svg
@@ -55,48 +51,37 @@ function GolfFlag() {
       animate={{ scale: 1, rotate: 0 }}
       transition={{ type: "spring", stiffness: 200, damping: 12 }}
     >
-      {/* Hole */}
-      <ellipse cx="24" cy="42" rx="14" ry="4" fill="#16a34a" opacity="0.3" />
-      {/* Pole */}
+      <ellipse cx="24" cy="42" rx="14" ry="4" fill="#10b981" opacity="0.25" />
       <rect x="22.5" y="8" width="3" height="34" rx="1.5" fill="#94a3b8" />
-      {/* Flag */}
       <motion.path
         d="M25.5 8 L42 14 L25.5 20 Z"
-        fill="#16a34a"
+        fill="#10b981"
         initial={{ scaleX: 0 }}
         animate={{ scaleX: [1, 0.95, 1] }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         style={{ transformOrigin: "25.5px 14px" }}
       />
-      {/* Ball */}
-      <circle cx="24" cy="39" r="4" fill="#f8f8f0" stroke="#e5e5db" strokeWidth="0.5" />
+      <circle cx="24" cy="39" r="4" fill="#fafaf5" stroke="#e5e5db" strokeWidth="0.5" />
     </motion.svg>
   );
 }
 
-/* Rolling ball progress indicator */
 function RollingBallProgress({ progress }: { progress: number }) {
   return (
     <div className="relative w-full max-w-md mx-auto">
-      {/* Grass ground */}
       <div className="absolute bottom-0 left-0 right-0 h-2 bg-gradient-to-r from-golf-dark via-golf-green/30 to-golf-dark rounded-full" />
-
-      {/* Progress track */}
       <div className="relative h-8 mb-1">
-        {/* Filled track */}
-        <div className="absolute bottom-1 left-0 right-0 h-1.5 bg-white/5 rounded-full overflow-hidden">
+        <div className="absolute bottom-1 left-0 right-0 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
           <motion.div
             className="h-full rounded-full"
             style={{
-              background: "linear-gradient(90deg, #052e16, #16a34a, #bbf7d0)",
+              background: "linear-gradient(90deg, #022c22, #10b981, #a7f3d0)",
             }}
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.5, ease: "easeOut" }}
           />
         </div>
-
-        {/* Rolling ball */}
         <motion.div
           className="absolute bottom-0"
           animate={{ left: `${Math.min(progress, 96)}%` }}
@@ -110,12 +95,10 @@ function RollingBallProgress({ progress }: { progress: number }) {
             transition={{ duration: 0.5, ease: "easeOut" }}
           />
         </motion.div>
-
-        {/* Flag at end */}
         <div className="absolute right-0 bottom-0">
           <svg viewBox="0 0 16 20" className="w-4 h-5" style={{ transform: "translateY(-4px)" }}>
             <rect x="7" y="0" width="1.5" height="18" fill="#94a3b8" rx="0.75" />
-            <path d="M8.5 1 L15 4 L8.5 7 Z" fill={progress >= 95 ? "#16a34a" : "#475569"} />
+            <path d="M8.5 1 L15 4 L8.5 7 Z" fill={progress >= 95 ? "#10b981" : "#475569"} />
           </svg>
         </div>
       </div>
@@ -129,18 +112,16 @@ export default function AnalysisProgress({ status, progress }: Props) {
 
   return (
     <div className="glass rounded-2xl p-8 max-w-lg mx-auto relative overflow-hidden">
-      {/* Subtle golf course background pattern */}
       <div
-        className="absolute inset-0 opacity-[0.02] pointer-events-none"
+        className="absolute inset-0 opacity-[0.015] pointer-events-none"
         style={{
           backgroundImage:
-            "radial-gradient(circle, #16a34a 1px, transparent 1px)",
+            "radial-gradient(circle, #10b981 1px, transparent 1px)",
           backgroundSize: "20px 20px",
         }}
       />
 
       <div className="relative z-10">
-        {/* Center animation */}
         <div className="flex flex-col items-center mb-8">
           <div className="mb-4">
             {isDone ? (
@@ -149,7 +130,7 @@ export default function AnalysisProgress({ status, progress }: Props) {
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="w-14 h-14 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center"
+                className="w-14 h-14 rounded-full bg-red-500/10 ring-1 ring-red-500/20 flex items-center justify-center"
               >
                 <span className="text-red-400 text-2xl font-bold">!</span>
               </motion.div>
@@ -165,15 +146,13 @@ export default function AnalysisProgress({ status, progress }: Props) {
               ? "Analysis Failed"
               : "Analyzing Your Swing..."}
           </h3>
-          <p className="text-white/40 text-sm">{progress}% complete</p>
+          <p className="text-white/45 text-sm">{progress}% complete</p>
         </div>
 
-        {/* Rolling ball progress bar */}
         <div className="mb-8">
           <RollingBallProgress progress={progress} />
         </div>
 
-        {/* Steps */}
         <div className="space-y-2.5">
           {STEPS.map((step, i) => {
             const done = progress >= step.threshold;
@@ -188,7 +167,7 @@ export default function AnalysisProgress({ status, progress }: Props) {
               <motion.div
                 key={step.label}
                 initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: done || active || isFirst ? 1 : 0.3, x: 0 }}
+                animate={{ opacity: done || active || isFirst ? 1 : 0.25, x: 0 }}
                 transition={{ delay: i * 0.06 }}
                 className="flex items-center gap-3"
               >
@@ -204,16 +183,16 @@ export default function AnalysisProgress({ status, progress }: Props) {
                       {step.icon}
                     </motion.span>
                   ) : (
-                    <Circle size={16} className="text-white/20 mx-auto" />
+                    <Circle size={16} className="text-white/15 mx-auto" />
                   )}
                 </div>
                 <span
                   className={`text-sm font-medium ${
                     done
-                      ? "text-white"
+                      ? "text-white/90"
                       : active || isFirst
                       ? "text-golf-green"
-                      : "text-white/30"
+                      : "text-white/25"
                   }`}
                 >
                   {step.label}

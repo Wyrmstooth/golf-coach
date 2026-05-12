@@ -12,6 +12,9 @@
   body {
     @apply bg-golf-navy text-white font-sans antialiased;
     min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 50% 0%, rgba(16, 185, 129, 0.06), transparent 70%),
+      radial-gradient(ellipse at 80% 50%, rgba(245, 158, 11, 0.03), transparent 60%);
   }
 
   :root {
@@ -26,29 +29,52 @@
     @apply bg-golf-slate;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-golf-green rounded-full;
+    @apply bg-golf-green/40 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-golf-green/60;
   }
 }
 
 @layer utilities {
   .glass {
-    @apply bg-white/5 backdrop-blur-md border border-white/10;
+    @apply bg-white/[0.06] backdrop-blur-xl border border-white/[0.12] shadow-card;
   }
   .glass-green {
-    @apply bg-golf-green/10 backdrop-blur-md border border-golf-green/30;
+    @apply bg-golf-green/10 backdrop-blur-xl border border-golf-green/30;
+  }
+  .glass-gold {
+    @apply bg-golf-gold/10 backdrop-blur-xl border border-golf-gold/25;
   }
   .text-gradient {
-    @apply bg-gradient-to-r from-golf-green via-golf-light to-golf-gold bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-golf-green via-emerald-300 to-golf-gold bg-clip-text text-transparent;
+  }
+  .text-gradient-subtle {
+    @apply bg-gradient-to-r from-golf-green to-emerald-400 bg-clip-text text-transparent;
   }
   .glow-green {
-    box-shadow: 0 0 24px rgba(22, 163, 74, 0.5);
+    box-shadow: 0 0 24px rgba(16, 185, 129, 0.45);
   }
   .glow-gold {
-    box-shadow: 0 0 24px rgba(202, 138, 4, 0.5);
+    box-shadow: 0 0 24px rgba(245, 158, 11, 0.45);
   }
   .animate-gradient-bg {
     background-size: 300% 300%;
     animation: gradient 8s ease infinite;
+  }
+
+  /* Button variants */
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-br from-golf-green to-emerald-600 text-white font-semibold rounded-xl shadow-glow transition-all duration-300;
+  }
+  .btn-primary:hover {
+    @apply from-emerald-500 to-emerald-600 shadow-glow-lg brightness-110;
+  }
+  .btn-glass {
+    @apply px-6 py-3 glass text-white/80 font-semibold rounded-xl transition-all duration-300;
+  }
+  .btn-glass:hover {
+    @apply bg-white/[0.10] text-white border-white/[0.20];
   }
 }
 
@@ -58,26 +84,25 @@
   height: 64px;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 30% 30%, rgba(255,255,255,0.35), transparent 50%),
-    radial-gradient(circle at 70% 25%, rgba(255,255,255,0.15), transparent 40%),
-    radial-gradient(circle at 50% 50%, #f8f8f0, #e2e2d8);
+    radial-gradient(circle at 30% 30%, rgba(255,255,255,0.40), transparent 50%),
+    radial-gradient(circle at 70% 25%, rgba(255,255,255,0.18), transparent 40%),
+    radial-gradient(circle at 50% 50%, #fafaf5, #e8e8db);
   box-shadow:
-    inset 0 -4px 8px rgba(0,0,0,0.12),
-    inset 0 2px 4px rgba(255,255,255,0.4),
-    0 8px 32px rgba(22, 163, 74, 0.3),
-    0 2px 8px rgba(0,0,0,0.3);
+    inset 0 -4px 8px rgba(0,0,0,0.10),
+    inset 0 2px 4px rgba(255,255,255,0.50),
+    0 8px 32px rgba(16, 185, 129, 0.25),
+    0 2px 8px rgba(0,0,0,0.35);
   position: relative;
   overflow: hidden;
 }
 
-/* Dimple pattern overlay */
 .golf-ball::before {
   content: '';
   position: absolute;
   inset: 4px;
   border-radius: 50%;
   background-image:
-    radial-gradient(circle, rgba(0,0,0,0.06) 1.5px, transparent 1.5px);
+    radial-gradient(circle, rgba(0,0,0,0.055) 1.5px, transparent 1.5px);
   background-size: 8px 8px;
   background-position: 0 0, 4px 4px;
 }
@@ -88,12 +113,11 @@
   inset: 4px;
   border-radius: 50%;
   background-image:
-    radial-gradient(circle, rgba(0,0,0,0.04) 1.5px, transparent 1.5px);
+    radial-gradient(circle, rgba(0,0,0,0.035) 1.5px, transparent 1.5px);
   background-size: 8px 8px;
   background-position: 4px 4px;
 }
 
-/* Golf ball bounce animation */
 @keyframes golf-bounce {
   0%, 100% {
     transform: translateY(0);
@@ -105,13 +129,11 @@
   }
 }
 
-/* Golf ball spin */
 @keyframes golf-spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
-/* Golf ball shadow pulse */
 @keyframes ball-shadow {
   0%, 100% {
     transform: scaleX(1);
@@ -123,32 +145,27 @@
   }
 }
 
-/* Rolling golf ball for progress */
 @keyframes ball-roll {
   0% { transform: translateX(0) rotate(0deg); }
   100% { transform: translateX(var(--roll-distance, 100px)) rotate(720deg); }
 }
 
-/* Tee wobble */
 @keyframes tee-wobble {
   0%, 100% { transform: rotate(0deg); }
   25% { transform: rotate(-3deg); }
   75% { transform: rotate(3deg); }
 }
 
-/* Grass wave */
 @keyframes grass-wave {
   0%, 100% { transform: scaleY(1) translateY(0); }
   50% { transform: scaleY(1.1) translateY(-2px); }
 }
 
-/* Fairway gradient pulse */
 @keyframes fairway-pulse {
   0%, 100% { opacity: 0.03; }
   50% { opacity: 0.07; }
 }
 
-/* Floating particles */
 @keyframes float-particle {
   0% {
     transform: translateY(0) translateX(0) scale(1);
@@ -164,7 +181,6 @@
   }
 }
 
-/* Smooth page entry with ball trajectory */
 @keyframes page-ball-enter {
   0% {
     clip-path: circle(0% at 50% 50%);

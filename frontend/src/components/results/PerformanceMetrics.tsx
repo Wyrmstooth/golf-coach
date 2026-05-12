@@ -103,7 +103,7 @@ function MetricCard({
 
 /* Confidence bar */
 function ConfidenceBar({ confidence, method }: { confidence: number; method: string }) {
-  const color = confidence > 70 ? "#16a34a" : confidence > 40 ? "#f59e0b" : "#ef4444";
+  const color = confidence > 70 ? "#10b981" : confidence > 40 ? "#f59e0b" : "#ef4444";
   const label = confidence > 70 ? "High" : confidence > 40 ? "Medium" : "Low";
 
   return (
@@ -184,7 +184,7 @@ export default function PerformanceMetrics({ performance, ballTracking }: Props)
           label="Ball Speed"
           value={ballSpeed}
           unit="mph"
-          color="#16a34a"
+          color="#10b981"
           delay={0}
         />
         <MetricCard
@@ -192,7 +192,7 @@ export default function PerformanceMetrics({ performance, ballTracking }: Props)
           label="Distance"
           value={distance}
           unit="yds"
-          color="#ca8a04"
+          color="#f59e0b"
           delay={0.1}
           subtitle="Total distance"
         />

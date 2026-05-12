@@ -404,8 +404,8 @@ export default function AdminPage() {
                               <LineChart data={userStats.score_trend}>
                                 <XAxis dataKey="date" tick={{ fill: "rgba(255,255,255,0.25)", fontSize: 10 }} axisLine={false} tickLine={false} />
                                 <YAxis domain={[0, 100]} tick={{ fill: "rgba(255,255,255,0.25)", fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
-                                <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, color: "#fff", fontSize: 12 }} />
-                                <Line type="monotone" dataKey="score" stroke="#16a34a" strokeWidth={2} dot={{ fill: "#16a34a", r: 3 }} />
+                                <Tooltip contentStyle={{ background: "#131c31", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, color: "#fff", fontSize: 12 }} />
+                                <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={2} dot={{ fill: "#10b981", r: 3 }} />
                               </LineChart>
                             </ResponsiveContainer>
                           </div>
@@ -418,7 +418,7 @@ export default function AdminPage() {
                               <BarChart data={userStats.top_faults} layout="vertical">
                                 <XAxis type="number" tick={{ fill: "rgba(255,255,255,0.25)", fontSize: 10 }} axisLine={false} tickLine={false} />
                                 <YAxis type="category" dataKey="fault" tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }} axisLine={false} tickLine={false} width={90} />
-                                <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="#16a34a" />
+                                <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="#10b981" />
                               </BarChart>
                             </ResponsiveContainer>
                           </div>

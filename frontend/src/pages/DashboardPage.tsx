@@ -29,10 +29,10 @@ function StatCard({
     >
       <div className="flex items-center gap-2">
         <Icon size={14} className={color} />
-        <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">{label}</span>
+        <span className="text-[11px] font-semibold text-white/40 uppercase tracking-widest">{label}</span>
       </div>
       <p className={`text-3xl font-bold font-display ${color}`}>{value}</p>
-      {sub && <p className="text-xs text-white/25">{sub}</p>}
+      {sub && <p className="text-xs text-white/30">{sub}</p>}
     </motion.div>
   );
 }
@@ -40,11 +40,11 @@ function StatCard({
 function ScoreChip({ score }: { score: number | null }) {
   if (score === null) return <span className="text-white/20 text-xs">—</span>;
   const color =
-    score >= 70 ? "text-golf-green bg-golf-green/10 border-golf-green/20"
-    : score >= 50 ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
-    : "text-red-400 bg-red-500/10 border-red-500/20";
+    score >= 70 ? "text-golf-green bg-golf-green/10 ring-1 ring-golf-green/20"
+    : score >= 50 ? "text-amber-400 bg-amber-500/10 ring-1 ring-amber-500/20"
+    : "text-red-400 bg-red-500/10 ring-1 ring-red-500/20";
   return (
-    <span className={`text-xs font-bold px-2 py-0.5 rounded-full border tabular-nums ${color}`}>
+    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full tabular-nums ${color}`}>
       {score.toFixed(0)}
     </span>
   );
@@ -58,20 +58,20 @@ function SessionRow({ s }: { s: SwingSessionOut }) {
     <motion.div
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
-      className="flex items-center gap-3 px-4 py-3 rounded-xl glass border border-white/5 hover:border-white/10 transition-all group"
+      className="flex items-center gap-3 px-4 py-3 rounded-xl glass border border-white/[0.06] hover:border-white/[0.12] transition-all group"
     >
-      <div className="w-8 h-8 rounded-lg bg-golf-green/10 flex items-center justify-center flex-shrink-0">
+      <div className="w-9 h-9 rounded-lg bg-golf-green/10 ring-1 ring-golf-green/15 flex items-center justify-center flex-shrink-0">
         <Video size={14} className="text-golf-green" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-white/80 font-medium truncate">
+        <p className="text-sm text-white/75 font-medium truncate">
           {s.video_filename || "Analysis"}
         </p>
         <div className="flex items-center gap-1.5 mt-0.5">
           <Clock size={10} className="text-white/20" />
-          <span className="text-[10px] text-white/25">{date}</span>
+          <span className="text-[10px] text-white/30">{date}</span>
           {s.swing_quality && (
-            <span className="text-[10px] text-white/20 ml-1">· {s.swing_quality}</span>
+            <span className="text-[10px] text-white/25 ml-1">· {s.swing_quality}</span>
           )}
         </div>
       </div>
@@ -91,7 +91,7 @@ function SessionRow({ s }: { s: SwingSessionOut }) {
 }
 
 const FAULT_COLORS = [
-  "#ef4444", "#f97316", "#eab308", "#22c55e",
+  "#ef4444", "#f97316", "#eab308", "#10b981",
   "#06b6d4", "#8b5cf6", "#ec4899", "#6b7280",
 ];
 
@@ -113,12 +113,11 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-golf-navy pt-20 sm:pt-24 pb-16 px-4 sm:px-6">
       <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8">
 
-        {/* Header */}
         <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">
             Welcome back, <span className="text-gradient">{user.display_name.split(" ")[0]}</span>
           </h1>
-          <p className="text-white/35 text-sm mt-1">
+          <p className="text-white/40 text-sm mt-1">
             Here's your swing performance overview
             {user.handicap != null && ` · Handicap: ${user.handicap}`}
           </p>
@@ -129,7 +128,7 @@ export default function DashboardPage() {
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="w-8 h-8 border-2 border-golf-green/30 border-t-golf-green rounded-full"
+              className="w-10 h-10 border-2 border-golf-green/30 border-t-golf-green rounded-full"
             />
           </div>
         )}
@@ -137,13 +136,12 @@ export default function DashboardPage() {
         {error && (
           <div className="glass rounded-2xl p-6 text-center">
             <AlertTriangle size={24} className="text-amber-400 mx-auto mb-2" />
-            <p className="text-white/50 text-sm">{error}</p>
+            <p className="text-white/45 text-sm">{error}</p>
           </div>
         )}
 
         {stats && !loading && (
           <>
-            {/* Stat cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard
                 icon={Activity}
@@ -155,14 +153,14 @@ export default function DashboardPage() {
                 icon={BarChart2}
                 label="Avg Score"
                 value={stats.avg_score != null ? `${stats.avg_score}` : "—"}
-                sub="Swing quality (higher is better)"
+                sub="Swing quality"
                 color={stats.avg_score != null && stats.avg_score >= 70 ? "text-golf-green" : "text-amber-400"}
               />
               <StatCard
                 icon={Trophy}
                 label="Best Score"
                 value={stats.best_score != null ? `${stats.best_score}` : "—"}
-                sub="Highest swing quality score"
+                sub="Highest quality score"
                 color="text-golf-green"
               />
               <StatCard
@@ -175,7 +173,6 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Score trend */}
               {stats.score_trend.length > 1 && (
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
@@ -185,8 +182,8 @@ export default function DashboardPage() {
                 >
                   <div className="flex items-center gap-2">
                     <TrendingUp size={13} className="text-golf-green" />
-                    <h3 className="text-sm font-semibold text-white/70">Score Trend</h3>
-                    <span className="text-xs text-white/20 ml-auto">last {stats.score_trend.length} sessions</span>
+                    <h3 className="text-sm font-semibold text-white/65">Score Trend</h3>
+                    <span className="text-xs text-white/25 ml-auto">last {stats.score_trend.length} sessions</span>
                   </div>
                   <ResponsiveContainer width="100%" height={180}>
                     <LineChart data={stats.score_trend}>
@@ -205,8 +202,8 @@ export default function DashboardPage() {
                       />
                       <Tooltip
                         contentStyle={{
-                          background: "#1e293b",
-                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "#131c31",
+                          border: "1px solid rgba(255,255,255,0.12)",
                           borderRadius: 12,
                           color: "#fff",
                           fontSize: 12,
@@ -216,17 +213,16 @@ export default function DashboardPage() {
                       <Line
                         type="monotone"
                         dataKey="score"
-                        stroke="#16a34a"
-                        strokeWidth={2}
-                        dot={{ fill: "#16a34a", r: 3, strokeWidth: 0 }}
-                        activeDot={{ r: 5, fill: "#16a34a" }}
+                        stroke="#10b981"
+                        strokeWidth={2.5}
+                        dot={{ fill: "#10b981", r: 3, strokeWidth: 0 }}
+                        activeDot={{ r: 5, fill: "#10b981" }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
                 </motion.div>
               )}
 
-              {/* Fault frequency */}
               {stats.fault_frequency.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
@@ -236,7 +232,7 @@ export default function DashboardPage() {
                 >
                   <div className="flex items-center gap-2">
                     <AlertTriangle size={13} className="text-amber-400" />
-                    <h3 className="text-sm font-semibold text-white/70">Most Common Faults</h3>
+                    <h3 className="text-sm font-semibold text-white/65">Most Common Faults</h3>
                   </div>
                   <ResponsiveContainer width="100%" height={180}>
                     <BarChart data={stats.fault_frequency} layout="vertical">
@@ -249,7 +245,7 @@ export default function DashboardPage() {
                       <YAxis
                         type="category"
                         dataKey="fault"
-                        tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }}
+                        tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 10 }}
                         axisLine={false}
                         tickLine={false}
                         width={90}
@@ -257,8 +253,8 @@ export default function DashboardPage() {
                       />
                       <Tooltip
                         contentStyle={{
-                          background: "#1e293b",
-                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "#131c31",
+                          border: "1px solid rgba(255,255,255,0.12)",
                           borderRadius: 12,
                           color: "#fff",
                           fontSize: 12,
@@ -276,7 +272,6 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Recent sessions */}
             {stats.recent_sessions.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
@@ -286,12 +281,12 @@ export default function DashboardPage() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Clock size={13} className="text-white/40" />
-                    <h3 className="text-sm font-semibold text-white/70">Recent Sessions</h3>
+                    <Clock size={13} className="text-white/35" />
+                    <h3 className="text-sm font-semibold text-white/65">Recent Sessions</h3>
                   </div>
                   <Link
                     to="/analyze"
-                    className="text-xs text-golf-green hover:text-golf-green/80 transition-colors font-medium"
+                    className="text-xs text-golf-green hover:text-golf-green/80 transition-colors font-semibold"
                   >
                     New analysis →
                   </Link>
@@ -304,19 +299,18 @@ export default function DashboardPage() {
               </motion.div>
             )}
 
-            {/* Empty state */}
             {stats.total_sessions === 0 && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="glass rounded-2xl p-12 text-center space-y-4"
               >
-                <Activity size={40} className="text-white/15 mx-auto" />
-                <p className="text-white/50 font-medium">No sessions yet</p>
-                <p className="text-white/25 text-sm">Analyze your first swing to start tracking progress</p>
+                <Activity size={44} className="text-white/[0.12] mx-auto" />
+                <p className="text-white/45 font-medium">No sessions yet</p>
+                <p className="text-white/30 text-sm">Analyze your first swing to start tracking your progress</p>
                 <Link
                   to="/analyze"
-                  className="inline-flex items-center gap-2 mt-2 bg-golf-green text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-golf-green/90 transition-colors"
+                  className="inline-flex items-center gap-2 mt-2 btn-primary text-sm px-6 py-3"
                 >
                   Analyze a Swing
                 </Link>

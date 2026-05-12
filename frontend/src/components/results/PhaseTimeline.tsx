@@ -38,8 +38,8 @@ const SEVERITY_BG: Record<string, string> = {
 };
 
 function scoreColor(score: number): string {
-  if (score <= 25) return "#16a34a";  // green - excellent
-  if (score <= 45) return "#ca8a04";  // amber - good
+  if (score <= 25) return "#10b981";  // green - excellent
+  if (score <= 45) return "#f59e0b";  // amber - good
   if (score <= 65) return "#f97316";  // orange - fair
   return "#ef4444";                   // red - needs work
 }

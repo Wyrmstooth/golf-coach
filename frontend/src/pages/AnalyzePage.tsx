@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RotateCcw, Image, Target, AlertCircle, RefreshCw, Clock, TrendingUp, Camera, ShieldCheck } from "lucide-react";
+import { RotateCcw, Image, Target, AlertCircle, RefreshCw, Clock, TrendingUp, Camera, ShieldCheck, Sparkles } from "lucide-react";
 
 import PageWrapper from "../components/layout/PageWrapper";
 import VideoDropzone from "../components/upload/VideoDropzone";
@@ -81,7 +81,6 @@ export default function AnalyzePage() {
     setPhase("idle");
   };
 
-  // Build video URL from report outputs
   const videoFilename = report?.outputs?.annotated_video
     ? report.outputs.annotated_video.split(/[\\/]/).pop()
     : undefined;
@@ -90,26 +89,22 @@ export default function AnalyzePage() {
       ? getFileUrl(jobId, report.outputs.annotated_video.split(/[\\/]/).pop() ?? report.outputs.annotated_video)
       : null);
 
-  // Ball trajectory plot image
   const ballPlotUrl = report?.outputs?.ball_plot_data_uri
     ?? (report?.outputs?.ball_plot && jobId
       ? getFileUrl(jobId, report.outputs.ball_plot.split(/[\\/]/).pop() ?? report.outputs.ball_plot)
       : null);
 
-  // Wrist trajectory plot
   const plotUrl = report?.outputs?.plot_data_uri
     ?? (report?.outputs?.plot && jobId
       ? getFileUrl(jobId, report.outputs.plot.split(/[\\/]/).pop() ?? report.outputs.plot)
       : null);
 
-  // Phase screenshots
   const phaseScreenshots = report?.outputs?.phase_screenshot_data_uris ?? report?.outputs?.phase_screenshots ?? {};
   const screenshotEntries = Object.entries(phaseScreenshots).filter(([, path]) => path);
 
   return (
     <PageWrapper className="bg-golf-navy">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -118,13 +113,12 @@ export default function AnalyzePage() {
           <h1 className="font-display text-3xl sm:text-4xl font-bold">
             Swing <span className="text-gradient">Analysis</span>
           </h1>
-          <p className="text-white/40 mt-2 text-sm sm:text-base">
+          <p className="text-white/45 mt-2 text-sm sm:text-base">
             Upload your golf swing video and get an AI-powered biomechanical report.
           </p>
         </motion.div>
 
         <AnimatePresence mode="wait">
-          {/* IDLE / VALIDATING / VALIDATED */}
           {(phase === "idle" || phase === "validating" || phase === "validated") && (
             <motion.div
               key="idle"
@@ -137,19 +131,22 @@ export default function AnalyzePage() {
                 <>
                   <VideoDropzone onFile={setFile} />
                   <motion.button
-                    whileHover={file ? { scale: 1.03, boxShadow: "0 0 32px rgba(22,163,74,0.5)" } : {}}
+                    whileHover={file ? { scale: 1.03, boxShadow: "0 0 36px rgba(16,185,129,0.5)" } : {}}
                     whileTap={file ? { scale: 0.97 } : {}}
                     onClick={handleAnalyze}
                     disabled={!file}
                     className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
                       file
-                        ? "bg-golf-green text-white shadow-glow hover:bg-green-500"
-                        : "bg-white/5 text-white/30 cursor-not-allowed"
+                        ? "btn-primary shadow-glow"
+                        : "bg-white/[0.04] text-white/25 cursor-not-allowed border border-white/[0.06]"
                     }`}
                   >
-                    Analyze My Swing
+                    <span className="flex items-center justify-center gap-2">
+                      <Sparkles size={20} />
+                      Analyze My Swing
+                    </span>
                   </motion.button>
-                  <p className="text-center text-xs text-white/25">
+                  <p className="text-center text-xs text-white/30">
                     Video is first validated to confirm it contains a golf swing. Full analysis takes 30–120 seconds.
                   </p>
                 </>
@@ -163,8 +160,8 @@ export default function AnalyzePage() {
                     className="w-12 h-12 mx-auto border-2 border-golf-green/30 border-t-golf-green rounded-full"
                   />
                   <div>
-                    <h3 className="font-display font-bold text-lg text-white mb-1">Validating Video</h3>
-                    <p className="text-white/40 text-sm">
+                    <h3 className="font-display font-bold text-lg mb-1">Validating Video</h3>
+                    <p className="text-white/45 text-sm">
                       Checking if your video contains a golf swing with detectable poses and keypoints...
                     </p>
                   </div>
@@ -177,17 +174,17 @@ export default function AnalyzePage() {
                   animate={{ opacity: 1, scale: 1 }}
                   className="glass rounded-2xl p-6 text-center space-y-4 border border-golf-green/20"
                 >
-                  <div className="w-14 h-14 mx-auto rounded-full bg-golf-green/10 flex items-center justify-center">
+                  <div className="w-14 h-14 mx-auto rounded-full bg-golf-green/10 ring-1 ring-golf-green/20 flex items-center justify-center">
                     <ShieldCheck size={28} className="text-golf-green" />
                   </div>
                   <div>
                     <h3 className="font-display font-bold text-lg text-golf-green mb-1">Video Valid</h3>
-                    <p className="text-white/40 text-sm">
+                    <p className="text-white/45 text-sm">
                       Golf swing detected. {validation.pose_detection_ratio && `Pose confidence: ${(validation.pose_detection_ratio * 100).toFixed(0)}% · `}
                       {validation.frame_count} frames · {validation.duration_sec}s
                     </p>
                   </div>
-                  <div className="flex items-center justify-center gap-2 text-xs text-white/30">
+                  <div className="flex items-center justify-center gap-2 text-xs text-white/35">
                     <motion.div
                       animate={{ rotate: 360 }}
                       transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -200,7 +197,6 @@ export default function AnalyzePage() {
             </motion.div>
           )}
 
-          {/* ANALYZING */}
           {phase === "analyzing" && (
             <motion.div
               key="analyzing"
@@ -213,7 +209,6 @@ export default function AnalyzePage() {
             </motion.div>
           )}
 
-          {/* ERROR */}
           {phase === "error" && (
             <motion.div
               key="error"
@@ -222,8 +217,7 @@ export default function AnalyzePage() {
               exit={{ opacity: 0, y: -16 }}
               className="max-w-lg mx-auto"
             >
-              <div className="glass rounded-2xl p-8 text-center space-y-6 border border-red-500/30">
-                {/* Error golf ball */}
+              <div className="glass rounded-2xl p-8 text-center space-y-6 border border-red-500/20">
                 <div className="relative mx-auto w-16 h-16">
                   <div className="golf-ball w-16 h-16 opacity-50" />
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -235,18 +229,17 @@ export default function AnalyzePage() {
                   <h3 className="font-display font-bold text-xl text-red-400 mb-2">
                     Analysis Failed
                   </h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
+                  <p className="text-white/55 text-sm leading-relaxed">
                     {errorMsg || "An unexpected error occurred during analysis."}
                   </p>
                 </div>
 
-                {/* Common troubleshooting */}
-                <div className="glass rounded-xl p-4 text-left space-y-2 text-xs text-white/40">
-                  <p className="font-semibold text-white/60">Common causes:</p>
-                  <p>• Missing ML packages: <code className="text-golf-green">pip install scikit-learn opencv-python mediapipe</code></p>
-                  <p>• Unsupported video format (try MP4)</p>
-                  <p>• Backend not running on port 8000</p>
-                  <p>• Video too short or corrupted</p>
+                <div className="glass rounded-xl p-4 text-left space-y-2 text-xs text-white/45">
+                  <p className="font-semibold text-white/55">Common causes:</p>
+                  <p>· Missing ML packages: <code className="text-golf-green">pip install scikit-learn opencv-python mediapipe</code></p>
+                  <p>· Unsupported video format (try MP4)</p>
+                  <p>· Backend not running on port 8000</p>
+                  <p>· Video too short or corrupted</p>
                 </div>
 
                 <div className="flex gap-3 justify-center">
@@ -254,24 +247,23 @@ export default function AnalyzePage() {
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={handleAnalyze}
-                    className="flex items-center gap-2 px-6 py-3 bg-golf-green/20 border border-golf-green/40 text-golf-green rounded-xl font-semibold text-sm hover:bg-golf-green/30 transition-all"
+                    className="flex items-center gap-2 px-6 py-3 bg-golf-green/15 border border-golf-green/30 text-golf-green rounded-xl font-semibold text-sm hover:bg-golf-green/25 transition-all"
                   >
-                    <RefreshCw size={14} /> Retry Analysis
+                    <RefreshCw size={14} /> Try Again
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={handleReset}
-                    className="flex items-center gap-2 px-6 py-3 glass border border-white/10 text-white/60 rounded-xl text-sm hover:text-white hover:border-white/30 transition-all"
+                    className="flex items-center gap-2 px-6 py-3 glass text-white/55 rounded-xl text-sm hover:text-white hover:border-white/[0.18] transition-all"
                   >
-                    <RotateCcw size={14} /> Upload Different Video
+                    <RotateCcw size={14} /> New Video
                   </motion.button>
                 </div>
               </div>
             </motion.div>
           )}
 
-          {/* DONE */}
           {phase === "done" && report && (
             <motion.div
               key="done"
@@ -279,7 +271,7 @@ export default function AnalyzePage() {
               animate={{ opacity: 1 }}
               className="space-y-10"
             >
-              {/* Top bar: score + actions */}
+              {/* Top bar */}
               <div className="glass rounded-2xl p-6 flex flex-col lg:flex-row items-center gap-8">
                 <SwingScoreRing
                   score={report.fault_analysis.overall_score ?? 0}
@@ -289,21 +281,20 @@ export default function AnalyzePage() {
                 <div className="flex-1 space-y-4">
                   <div className="flex flex-wrap gap-3 items-center">
                     <h2 className="font-display text-2xl font-bold">Analysis Complete</h2>
-                    <span className="text-xs text-white/40 glass px-3 py-1 rounded-full">
+                    <span className="text-xs text-white/35 glass px-3 py-1 rounded-full">
                       {report.fault_analysis.fault_details?.summary?.total_faults ?? 0} faults found
                     </span>
                   </div>
-                  <p className="text-white/50 text-sm">
-                    Video: <span className="text-white/70">{report.video.split(/[\\/]/).pop()}</span>
+                  <p className="text-white/45 text-sm">
+                    Video: <span className="text-white/65">{report.video.split(/[\\/]/).pop()}</span>
                   </p>
                   <div className="flex flex-wrap gap-3">
                     {report && jobId && <ReportDownload report={report} jobId={jobId} />}
-
                     <motion.button
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
                       onClick={handleReset}
-                      className="flex items-center gap-2 px-5 py-3 glass border border-white/10 rounded-xl text-sm text-white/60 hover:text-white hover:border-white/30 transition-all"
+                      className="flex items-center gap-2 px-5 py-3 glass text-sm text-white/55 hover:text-white hover:border-white/[0.18] rounded-xl transition-all"
                     >
                       <RotateCcw size={14} /> Analyze Another
                     </motion.button>
@@ -311,26 +302,26 @@ export default function AnalyzePage() {
                 </div>
               </div>
 
-              {/* Quick stats row */}
+              {/* Quick stats */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
                   {
                     icon: Target,
-                    label: "Faults Found",
+                    label: "Faults",
                     value: `${report.fault_analysis.fault_details?.summary?.total_faults ?? 0}`,
                     sub: `${report.fault_analysis.fault_details?.summary?.critical_count ?? 0} critical`,
                     color: "text-red-400",
                   },
                   {
                     icon: TrendingUp,
-                    label: "Swing Score",
+                    label: "Score",
                     value: `${report.fault_analysis.overall_score ?? 0}/100`,
                     sub: report.fault_analysis.swing_quality,
                     color: "text-golf-green",
                   },
                   {
                     icon: Clock,
-                    label: "Phases Analyzed",
+                    label: "Phases",
                     value: `${Object.keys(report.phase_ranges).length}`,
                     sub: `${Object.values(report.phase_ranges).flat().reduce((a, b) => Math.max(a, b), 0)} frames`,
                     color: "text-blue-400",
@@ -348,11 +339,11 @@ export default function AnalyzePage() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.08 }}
-                    className="glass rounded-xl p-4 border border-white/5"
+                    className="glass rounded-xl p-4"
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <stat.icon size={14} className="text-white/30" />
-                      <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">{stat.label}</span>
+                      <stat.icon size={14} className="text-white/25" />
+                      <span className="text-[10px] text-white/35 uppercase tracking-wider font-semibold">{stat.label}</span>
                     </div>
                     <div className={`font-display font-bold text-lg ${stat.color}`}>{stat.value}</div>
                     <div className="text-[10px] text-white/30 mt-0.5">{stat.sub}</div>
@@ -370,17 +361,14 @@ export default function AnalyzePage() {
                 />
               </div>
 
-              {/* Two-column layout */}
+              {/* Two-column: faults + perf/video */}
               <div className="grid lg:grid-cols-5 gap-6">
-                {/* Faults (wider) */}
                 <div className="lg:col-span-3 glass rounded-2xl p-6 space-y-4">
-                  <h3 className="text-sm font-semibold text-white/60 uppercase tracking-widest">
+                  <h3 className="text-xs font-semibold text-white/50 uppercase tracking-widest">
                     Fault Analysis
                   </h3>
                   <FaultCards faultDetails={report.fault_analysis.fault_details} />
                 </div>
-
-                {/* Side: perf + annotated video */}
                 <div className="lg:col-span-2 space-y-6">
                   <div className="glass rounded-2xl p-6">
                     <PerformanceMetrics
@@ -388,7 +376,6 @@ export default function AnalyzePage() {
                       ballTracking={report.ball_tracking}
                     />
                   </div>
-
                   {videoUrl && (
                     <VideoPlayer
                       ref={videoRef}
@@ -418,21 +405,20 @@ export default function AnalyzePage() {
                   className="glass rounded-2xl p-6 space-y-4"
                 >
                   <div className="flex items-center gap-2">
-                    <Camera size={14} className="text-white/40" />
-                    <span className="text-sm font-semibold text-white/60 uppercase tracking-widest">Phase Snapshots</span>
+                    <Camera size={14} className="text-white/35" />
+                    <span className="text-xs font-semibold text-white/50 uppercase tracking-widest">Phase Snapshots</span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                     {screenshotEntries.map(([phase, path]) => {
-                      const url = path;
-                      if (!url) return null;
+                      if (!path) return null;
                       return (
                         <div key={phase} className="space-y-1.5">
                           <img
-                            src={url}
+                            src={path}
                             alt={`${phase} screenshot`}
-                            className="w-full aspect-video object-cover rounded-lg border border-white/10"
+                            className="w-full aspect-video object-cover rounded-lg border border-white/[0.08]"
                           />
-                          <span className="text-[10px] text-white/40 font-semibold uppercase tracking-wide block text-center">
+                          <span className="text-[10px] text-white/35 font-semibold uppercase tracking-wide block text-center">
                             {phase.replace("_", " ")}
                           </span>
                         </div>
@@ -448,19 +434,13 @@ export default function AnalyzePage() {
                   <motion.div
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="glass rounded-2xl p-4 space-y-3"
+                    className="glass rounded-2xl p-5 space-y-3"
                   >
                     <div className="flex items-center gap-2">
-                      <Image size={14} className="text-white/40" />
-                      <span className="text-xs text-white/40 font-semibold uppercase tracking-wider">
-                        Wrist Trajectory Plot
-                      </span>
+                      <Image size={14} className="text-white/35" />
+                      <span className="text-xs text-white/45 font-semibold uppercase tracking-wider">Wrist Trajectory</span>
                     </div>
-                    <img
-                      src={plotUrl}
-                      alt="Swing analysis plot"
-                      className="w-full rounded-lg"
-                    />
+                    <img src={plotUrl} alt="Swing analysis plot" className="w-full rounded-lg" />
                   </motion.div>
                 )}
                 {ballPlotUrl && (
@@ -468,19 +448,13 @@ export default function AnalyzePage() {
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="glass rounded-2xl p-4 space-y-3"
+                    className="glass rounded-2xl p-5 space-y-3"
                   >
                     <div className="flex items-center gap-2">
-                      <Target size={14} className="text-white/40" />
-                      <span className="text-xs text-white/40 font-semibold uppercase tracking-wider">
-                        Ball Trajectory Plot
-                      </span>
+                      <Target size={14} className="text-white/35" />
+                      <span className="text-xs text-white/45 font-semibold uppercase tracking-wider">Ball Trajectory</span>
                     </div>
-                    <img
-                      src={ballPlotUrl}
-                      alt="Ball trajectory plot"
-                      className="w-full rounded-lg"
-                    />
+                    <img src={ballPlotUrl} alt="Ball trajectory plot" className="w-full rounded-lg" />
                   </motion.div>
                 )}
               </div>
