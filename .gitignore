@@ -62,10 +62,13 @@ tmp/
 
 golf.db
 
-# Large model files — use git-lfs for .pt files
+# Large model files — use git-lfs for golf_ball_frcnn.pt
 models/*.task
 *.task
-# .pt files are tracked via Git LFS (see .gitattributes)
+models/ball_detector.pt
+models/fault_detector.pt
+models/performance_predictor.pt
+# golf_ball_frcnn.pt is tracked via Git LFS (see .gitattributes)
 
 # Environment & config
 .env
