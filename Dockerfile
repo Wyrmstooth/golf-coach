@@ -22,11 +22,6 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     MPLBACKEND=Agg
 
-# Configurable URL for the ball tracking model (165 MB).
-# Set on Railway/Render as env var pointing to the model file.
-# Example: MODEL_URL=https://huggingface.co/user/golf-ball-detector/resolve/main/golf_ball_frcnn.pt
-ENV MODEL_URL=""
-
 # Copy and install requirements (layer caching)
 COPY requirements.txt ./requirements.txt
 COPY backend/requirements_api.txt ./backend/requirements_api.txt
@@ -39,11 +34,7 @@ RUN pip install --no-cache-dir --prefer-binary \
 # Copy remaining project files
 COPY . .
 
-# Verify model status (warns but does not fail build)
-RUN python3 verify_model.py || true; rm -f verify_model.py
-
 EXPOSE 8000
 
-# At container startup: download model if MODEL_URL is set and model not present
-# Then start the server
-CMD ["sh", "-c", "python3 scripts/download_model.py; python -m uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Run the backend server
+CMD ["sh", "-c", "python -m uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
