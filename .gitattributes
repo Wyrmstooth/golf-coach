@@ -1,1 +1,2 @@
-models/golf_ball_frcnn.pt filter=lfs diff=lfs merge=lfs -text
+# This file intentionally left empty.
+# Model files are downloaded at runtime via MODEL_URL env var.

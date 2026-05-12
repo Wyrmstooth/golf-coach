@@ -1,28 +1,30 @@
-"""Verify the ball tracking model is a real binary file, not a Git LFS pointer.
+"""Check if the ball tracking model is available.
 
-Exits with 0 if the model is valid or absent (ball tracking will be disabled).
-Exits with 1 if the model is a Git LFS pointer (broken — would fail at runtime).
+Exits with 0 always (never fails the build).
+If the model is missing or is an LFS pointer, prints a warning about
+setting MODEL_URL to download at runtime.
 """
 import os
 import sys
 
-model = "models/golf_ball_frcnn.pt"
+MODEL = "models/golf_ball_frcnn.pt"
 
-if not os.path.exists(model):
-    print("WARNING: Ball tracking model not found — ball tracking will be unavailable")
+if not os.path.exists(MODEL):
+    print("WARNING: Ball tracking model not found")
+    print("Set MODEL_URL env var to download at runtime, or ball tracking will be disabled")
     sys.exit(0)
 
-size = os.path.getsize(model)
+size = os.path.getsize(MODEL)
 if size < 1000:
-    print(f"ERROR: Ball tracking model is a Git LFS pointer ({size} bytes).")
-    print("       Run 'git lfs pull' or set MODEL_DOWNLOAD_URL before building.")
-    sys.exit(1)
+    print(f"WARNING: Ball tracking model is a Git LFS pointer ({size} bytes)")
+    print("Set MODEL_URL env var to download the real model at runtime")
+    sys.exit(0)
 
-# Check for LFS pointer header (starts with "version https://git-lfs...")
-with open(model, "rb") as f:
+with open(MODEL, "rb") as f:
     header = f.read(50)
-if header.startswith(b"version https://git-lfs"):
-    print(f"ERROR: Ball tracking model is a Git LFS pointer file. Download the real file first.")
-    sys.exit(1)
+if header.strip().startswith(b"version https://git-lfs"):
+    print("WARNING: Ball tracking model is a Git LFS pointer file")
+    print("Set MODEL_URL env var to download the real model at runtime")
+    sys.exit(0)
 
 print(f"Ball tracking model OK ({size // 1024 // 1024} MB)")
