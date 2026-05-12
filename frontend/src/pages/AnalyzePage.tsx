@@ -32,30 +32,41 @@ export default function AnalyzePage() {
   const { status, progress, error: jobError } = useAnalysisJob(jobId);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [searchParams] = useSearchParams();
+  const didLoadJob = useRef(false);
 
-  // Load past analysis from URL param (e.g. /analyze?job=xxx)
+  // Load past analysis from URL param (works with both hash and regular routing)
   useEffect(() => {
-    const jobParam = searchParams.get("job");
+    if (didLoadJob.current) return;
+    // Try react-router search params first, then fall back to parsing the hash
+    let jobParam = searchParams.get("job");
+    if (!jobParam) {
+      const hash = window.location.hash;
+      const hashParams = new URLSearchParams(hash.includes("?") ? hash.split("?")[1] : "");
+      jobParam = hashParams.get("job");
+    }
     if (jobParam && !jobId) {
-      setPhase("analyzing");
+      didLoadJob.current = true;
       setJobId(jobParam);
+      setPhase("analyzing");
     }
-  }, []); // run once on mount
+  }, [searchParams, jobId, setJobId]);
 
-  if (phase === "analyzing" && status === "done" && report) {
-    setPhase("done");
-  }
-
-  if (phase === "analyzing" && status === "error") {
-    setPhase("error");
-    if (!errorMsg) {
-      setErrorMsg(
-        typeof jobError === "string"
-          ? jobError
-          : jobError?.message ?? "Analysis failed. The backend may be missing required ML packages."
-      );
+  // Transition phases based on analysis status (in useEffect, not render body)
+  useEffect(() => {
+    if (phase === "analyzing" && status === "done" && report) {
+      setPhase("done");
     }
-  }
+    if (phase === "analyzing" && status === "error") {
+      setPhase("error");
+      if (!errorMsg) {
+        setErrorMsg(
+          typeof jobError === "string"
+            ? jobError
+            : jobError?.message ?? "Analysis failed. The backend may be missing required ML packages."
+        );
+      }
+    }
+  }, [phase, status, report, jobError, errorMsg]);
 
   const handleAnalyze = async () => {
     if (!file) return;
