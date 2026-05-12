@@ -1,4 +1,5 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { RotateCcw, Image, Target, AlertCircle, RefreshCw, Clock, TrendingUp, Camera, ShieldCheck, Sparkles } from "lucide-react";
 
@@ -30,6 +31,16 @@ export default function AnalyzePage() {
   const { jobId, setJobId, report, reset } = useAppStore();
   const { status, progress, error: jobError } = useAnalysisJob(jobId);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [searchParams] = useSearchParams();
+
+  // Load past analysis from URL param (e.g. /analyze?job=xxx)
+  useEffect(() => {
+    const jobParam = searchParams.get("job");
+    if (jobParam && !jobId) {
+      setPhase("analyzing");
+      setJobId(jobParam);
+    }
+  }, []); // run once on mount
 
   if (phase === "analyzing" && status === "done" && report) {
     setPhase("done");
