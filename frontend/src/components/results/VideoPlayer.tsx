@@ -96,10 +96,27 @@ const VideoPlayer = forwardRef<HTMLVideoElement, Props>(
         {/* Video */}
         <div className="relative bg-black">
           {videoError ? (
-            <div className="w-full aspect-video flex items-center justify-center bg-black/80 text-white/40 text-sm">
-              <div className="text-center space-y-2">
-                <p>Annotated video unavailable</p>
-                <p className="text-xs text-white/20">Try analyzing again or use a different video format</p>
+            <div className="w-full aspect-video flex items-center justify-center bg-black/80">
+              <div className="text-center space-y-3 px-6">
+                <div className="w-12 h-12 mx-auto rounded-full bg-golf-green/10 ring-1 ring-golf-green/20 flex items-center justify-center">
+                  <Download size={22} className="text-golf-green" />
+                </div>
+                <div>
+                  <p className="text-white/60 font-semibold text-sm">Download to Play</p>
+                  <p className="text-white/30 text-xs mt-1 max-w-xs">
+                    This video uses a codec not supported by your browser. Download it to watch the annotated swing analysis.
+                  </p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-golf-green/15 border border-golf-green/30 text-golf-green rounded-xl font-semibold text-sm hover:bg-golf-green/25 transition-all"
+                >
+                  {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  {downloading ? "Downloading..." : "Download Video"}
+                </motion.button>
               </div>
             </div>
           ) : (

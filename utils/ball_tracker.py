@@ -71,7 +71,8 @@ class BallTracker:
             detector: Configured BallDetector instance.
 
         Returns:
-            (trajectory_points, quality_metrics)
+            (trajectory_points, quality_metrics) — coordinates are in
+            original video pixel space regardless of any internal scaling.
         """
         path = Path(video_path)
         if not path.exists():
@@ -79,18 +80,36 @@ class BallTracker:
 
         cap = cv2.VideoCapture(str(path))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
         impact_start, impact_end = impact_range
         start_frame = max(0, impact_start - self.window_before_impact)
         end_frame = min(total_frames - 1, impact_end + self.window_after_impact)
 
         if fps <= 0:
-            fps = 30.0  # sensible default
+            fps = 30.0
+
+        # Downscale high-res frames for faster, more accurate detection.
+        # The Faster R-CNN model works best on ≤1080p input; running it
+        # on 4K frames is slow and detects poorly (tiny objects, huge kernels).
+        max_process_dim = 1280
+        scale_factor = 1.0
+        if max(original_width, original_height) > max_process_dim:
+            scale_factor = max_process_dim / max(original_width, original_height)
+            process_width = int(original_width * scale_factor)
+            process_height = int(original_height * scale_factor)
+        else:
+            process_width = original_width
+            process_height = original_height
 
         trajectory: List[BallTrajectoryPoint] = []
 
+        # Reset detector state (e.g. Kalman filter) for a fresh video
+        if hasattr(detector, 'reset'):
+            detector.reset()
+
         try:
-            # Seek to start frame
             cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
             current_frame = start_frame
 
@@ -99,14 +118,25 @@ class BallTracker:
                 if not ret:
                     break
 
-                detections = detector.detect(frame)
+                # Downscale for detection if needed
+                if scale_factor != 1.0:
+                    proc_frame = cv2.resize(
+                        frame, (process_width, process_height),
+                        interpolation=cv2.INTER_AREA,
+                    )
+                else:
+                    proc_frame = frame
+
+                detections = detector.detect(proc_frame)
                 if detections:
                     best: BallDetection = detections[0]
+                    # Map detection coordinates back to original pixel space
+                    inv_scale = 1.0 / scale_factor if scale_factor != 1.0 else 1.0
                     point = BallTrajectoryPoint(
                         frame=current_frame,
                         t_sec=current_frame / fps,
-                        x=best.x,
-                        y=best.y,
+                        x=best.x * inv_scale,
+                        y=best.y * inv_scale,
                         confidence=best.confidence,
                     )
                 else:

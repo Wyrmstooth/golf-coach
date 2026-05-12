@@ -1,14 +1,14 @@
 """
-Ball Detection Model - YOLOv8 Wrapper
+Ball Detection Model
 
-This module provides a thin, configurable wrapper around a YOLOv8 model
-for detecting the golf ball in individual video frames.
+This module provides a factory function `create_ball_detector()` that returns
+the appropriate detector based on config. Supported backends:
 
-It is intentionally lightweight and decoupled from training:
-- Training is done via a separate script (see training/train_ball_detector.py).
-- At runtime we only need the exported .pt weights.
+  - "faster_rcnn" — GolfBallDetector (Faster R-CNN + Kalman Filter)
+    Based on: Zhang et al., IEEE SMC 2020
+    Repo:     https://github.com/rucv/golf_ball
 
-The detector is used by Module 3 (Ball Tracking & Trajectory Analysis).
+  - "yolo" — BallDetector (YOLOv8, legacy fallback)
 """
 
 from __future__ import annotations
@@ -162,4 +162,50 @@ class BallDetector:
         # Sort by confidence descending
         detections.sort(key=lambda d: d.confidence, reverse=True)
         return detections
+
+
+# ── Factory ──────────────────────────────────────────────────────────────
+
+def create_ball_detector(config: dict | None = None) -> BallDetector | object:
+    """
+    Create a ball detector based on module3 config.
+
+    Returns an object with a `detect(frame_bgr) -> List[BallDetection]` method,
+    suitable for use with BallTracker.
+
+    Config keys (under module3):
+        backend:            "faster_rcnn" (default) or "yolo"
+        ball_detection.*    YOLOv8 settings
+        faster_rcnn.*       Faster R-CNN settings
+    """
+    module3_cfg = (config or {}).get("module3", {}) or {}
+    backend = module3_cfg.get("backend", "faster_rcnn")
+
+    if backend == "faster_rcnn":
+        frcnn_cfg = module3_cfg.get("faster_rcnn", {}) or {}
+        try:
+            from models.golf_ball_detector import GolfBallDetector
+            return GolfBallDetector(
+                model_path=frcnn_cfg.get("model_path", "models/golf_ball_frcnn.pt"),
+                conf_threshold=frcnn_cfg.get("conf_threshold", 0.5),
+                device=frcnn_cfg.get("device", "auto"),
+                crop_size=frcnn_cfg.get("crop_size", 300),
+                enable_kalman=frcnn_cfg.get("enable_kalman", True),
+            )
+        except ImportError as e:
+            raise ImportError(
+                "Faster R-CNN detector requires torch and torchvision. "
+                "Install with: pip install torch torchvision"
+            ) from e
+
+    elif backend == "yolo":
+        yolo_cfg = module3_cfg.get("ball_detection", {}) or {}
+        return BallDetector(
+            model_path=yolo_cfg.get("model_path", "models/ball_detector.pt"),
+            conf_threshold=yolo_cfg.get("conf_threshold", 0.4),
+            iou_threshold=yolo_cfg.get("iou_threshold", 0.45),
+            device=yolo_cfg.get("device", "auto"),
+        )
+
+    raise ValueError(f"Unknown ball detector backend: {backend}. Use 'faster_rcnn' or 'yolo'.")
 

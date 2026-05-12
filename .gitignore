@@ -104,3 +104,5 @@ frontend/build/
 
 # Jupyter
 .ipynb_checkpoints/
+
+Golf Ball/

@@ -111,12 +111,24 @@ ml_models:
 module3:
   enabled: true
 
+  # Detector backend: "yolo" | "faster_rcnn"
+  backend: "faster_rcnn"
+
+  # ── YOLOv8 backend ──────────────────────────────────────────────────
   ball_detection:
     # Path to YOLOv8 golf ball detection model (trained separately)
     model_path: "models/ball_detector.pt"
     conf_threshold: 0.4
     iou_threshold: 0.45
     device: "auto"  # "auto", "cpu", or "cuda"
+
+  # ── Faster R-CNN backend (recommended) ──────────────────────────────
+  faster_rcnn:
+    model_path: "models/golf_ball_frcnn.pt"
+    conf_threshold: 0.3
+    device: "auto"
+    crop_size: 600
+    enable_kalman: true
 
   ball_tracking:
     # Frames before and after IMPACT phase to search for the ball

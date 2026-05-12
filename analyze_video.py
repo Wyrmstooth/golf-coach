@@ -39,7 +39,7 @@ from utils.video_processor import VideoProcessor
 from utils.visualizer import SwingVisualizer
 from models.fault_detector import FaultDetector
 from models.performance_predictor import PerformancePredictor
-from models.ball_detector import BallDetector
+from models.ball_detector import BallDetector, create_ball_detector
 from pose_detector import PoseDetector
 from training.caddieset_feature_extractor import CaddieSetFeatureExtractor
 from utils.ball_tracker import BallTracker, BallTrajectoryPoint
@@ -80,12 +80,11 @@ class MLSwingAnalyzer:
 
         # Module 3 components (Ball tracking & trajectory)
         module3_cfg = (self.config or {}).get("module3", {}) or {}
-        ball_det_cfg = module3_cfg.get("ball_detection", {}) or {}
         ball_track_cfg = module3_cfg.get("ball_tracking", {}) or {}
         dist_cfg = module3_cfg.get("distance_estimation", {}) or {}
 
         self.module3_enabled: bool = bool(module3_cfg.get("enabled", False))
-        self.ball_detector: Optional[BallDetector] = None
+        self.ball_detector = None  # type: ignore[assignment]
         self.ball_tracker: Optional[BallTracker] = None
         self.distance_estimator: Optional[DistanceEstimator] = None
 
@@ -122,17 +121,11 @@ class MLSwingAnalyzer:
         # Module 3: Ball detector, tracker, and distance estimator
         module3_cfg = (self.config or {}).get("module3", {}) or {}
         if module3_cfg.get("enabled", False):
-            ball_det_cfg = module3_cfg.get("ball_detection", {}) or {}
             ball_track_cfg = module3_cfg.get("ball_tracking", {}) or {}
             dist_cfg = module3_cfg.get("distance_estimation", {}) or {}
 
             try:
-                self.ball_detector = BallDetector(
-                    model_path=ball_det_cfg.get("model_path", "models/ball_detector.pt"),
-                    conf_threshold=ball_det_cfg.get("conf_threshold", 0.4),
-                    iou_threshold=ball_det_cfg.get("iou_threshold", 0.45),
-                    device=ball_det_cfg.get("device", "auto"),
-                )
+                self.ball_detector = create_ball_detector(self.config)
                 self.ball_tracker = BallTracker(
                     window_before_impact=ball_track_cfg.get("window_before_impact", 5),
                     window_after_impact=ball_track_cfg.get("window_after_impact", 70),
@@ -619,14 +612,16 @@ class MLSwingAnalyzer:
                         max_severity = sev
                         break
 
-                # Simple phase score for visualization only (0–100)
+                # Phase score: 100 = perfect (no faults), lower = more faults.
+                # Consistent with overall_score where higher is always better.
                 weighted_sum = sum(
                     counts[sev] * severity_weights[sev] for sev in counts
                 )
                 # Assume up to ~8 weighted units per phase → scale into 0–100
-                phase_score = 0.0
+                fault_penalty = 0.0
                 if weighted_sum > 0:
-                    phase_score = float(min(100.0, (weighted_sum / 8.0) * 100.0))
+                    fault_penalty = float(min(100.0, (weighted_sum / 8.0) * 100.0))
+                phase_score = 100.0 - fault_penalty
 
                 top_fault_titles = [
                     f.get("title", "") for f in faults if f.get("title")

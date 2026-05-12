@@ -124,23 +124,20 @@ class VideoProcessor:
         if scale_factor != 1.0:
             print(f"   Output resolution: {output_width}x{output_height}")
         
-        # Setup output video with efficient codec
+        # Setup output video — prefer browser-compatible H.264 (avc1),
+        # fall back to mp4v (always works but needs download in most browsers).
         output_fps = max(15, fps * slow_motion)
         print(f"   Output FPS: {output_fps:.1f}")
-        
-        # Try mp4v first (built-in OpenCV codec, no external library needed).
-        # avc1 (H.264/libopenh264) is intentionally after mp4v because on Windows
-        # an incorrect libopenh264 version can make out.release() deadlock even when
-        # out.isOpened() returned True.
         out = None
-        for codec in ['mp4v', 'avc1', 'XVID', 'MJPG']:
+        used_codec = None
+        for codec in ['avc1', 'mp4v', 'XVID', 'MJPG']:
             fourcc = cv2.VideoWriter_fourcc(*codec)
             out = cv2.VideoWriter(output_path, fourcc, output_fps, (output_width, output_height))
             if out.isOpened():
-                if codec not in ('mp4v', 'avc1'):
-                    print(f"   Using {codec} codec")
+                used_codec = codec
                 break
             out.release()
+            out = None
         
         if not out or not out.isOpened():
             raise RuntimeError(f"Failed to create video writer for {output_path}")
@@ -238,7 +235,7 @@ class VideoProcessor:
 
                 # Add ball overlay (Module 3)
                 if ball_by_frame:
-                    frame = self._add_ball_overlay(frame, frame_idx, ball_by_frame)
+                    frame = self._add_ball_overlay(frame, frame_idx, ball_by_frame, scale_factor)
                 
                 out.write(frame)
         finally:
@@ -248,8 +245,11 @@ class VideoProcessor:
                 pose.close()
         
         print(f"✅ Saved annotated video: {output_path}")
+        if used_codec == "avc1":
+            print(f"   H.264 codec — playable directly in browser")
+        elif used_codec == "mp4v":
+            print(f"   mp4v codec — may require download to play (H.264 DLL not found)")
         
-        # Return directly without re-encoding (saves significant time)
         return output_path
     
     def _add_pose_overlay(self, frame: np.ndarray, pose) -> np.ndarray:
@@ -400,24 +400,34 @@ class VideoProcessor:
         frame: np.ndarray,
         frame_idx: int,
         ball_by_frame: Dict[int, BallTrajectoryPoint],
+        scale_factor: float = 1.0,
         tail_length: int = 10,
     ) -> np.ndarray:
         """
         Draw ball position and a short tail of previous positions.
+
+        Args:
+            scale_factor: Multiplier for ball coordinates when the output
+                          frame has been downscaled/upscaled relative to
+                          the coordinate space the detector ran on.
         """
         height, width = frame.shape[:2]
+
+        # Scale circle radius with output resolution
+        base_radius = max(3, int(round(6 * (width / 1920.0))))
+        tail_radius = max(2, int(round(4 * (width / 1920.0))))
 
         # Current point
         pt = ball_by_frame.get(frame_idx)
         if not pt or pt.x is None or pt.y is None:
             return frame
 
-        # Convert from float pixel coords
-        x = int(np.clip(pt.x, 0, width - 1))
-        y = int(np.clip(pt.y, 0, height - 1))
+        # Convert from detection-pixel coords to output-pixel coords
+        x = int(np.clip(pt.x * scale_factor, 0, width - 1))
+        y = int(np.clip(pt.y * scale_factor, 0, height - 1))
 
         # Draw current ball position (bright yellow)
-        cv2.circle(frame, (x, y), 6, (0, 255, 255), -1)
+        cv2.circle(frame, (x, y), base_radius, (0, 255, 255), -1)
 
         # Draw tail of previous positions
         for offset in range(1, tail_length + 1):
@@ -426,13 +436,13 @@ class VideoProcessor:
             if not prev_pt or prev_pt.x is None or prev_pt.y is None:
                 continue
 
-            px = int(np.clip(prev_pt.x, 0, width - 1))
-            py = int(np.clip(prev_pt.y, 0, height - 1))
+            px = int(np.clip(prev_pt.x * scale_factor, 0, width - 1))
+            py = int(np.clip(prev_pt.y * scale_factor, 0, height - 1))
 
             # Fade color with age
             alpha = max(0.2, 1.0 - offset / float(tail_length + 1))
             color = (0, int(255 * alpha), int(255 * alpha))
-            cv2.circle(frame, (px, py), 4, color, -1)
+            cv2.circle(frame, (px, py), tail_radius, color, -1)
 
         return frame
     
