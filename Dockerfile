@@ -1,4 +1,12 @@
-# Backend image for Railway / Render Docker deployment
+# ── Stage 1: Clone repo with Git LFS to get the real model file ──
+FROM python:3.10-slim AS lfs
+
+RUN apt-get update && apt-get install -y --no-install-recommends git git-lfs && rm -rf /var/lib/apt/lists/*
+RUN git lfs install
+WORKDIR /repo
+RUN git clone --depth 1 https://github.com/zainulabidin776/golf-dashboard.git .
+
+# ── Stage 2: Build the app ──
 FROM python:3.10-slim
 
 WORKDIR /app
@@ -31,13 +39,11 @@ RUN pip install --no-cache-dir --prefer-binary \
     -r requirements.txt \
     -r backend/requirements_api.txt
 
-# Copy remaining project files
+# Copy remaining project files (LFS pointers for .pt files)
 COPY . .
 
-# Resolve Git LFS pointer for the ball tracking model.
-# Docker COPY doesn't pull LFS objects, so we download the real binary
-# from GitHub's LFS storage using the batch API.
-RUN python3 scripts/resolve_lfs.py && rm -rf scripts
+# Replace LFS pointers with real model files from the git-lfs stage
+COPY --from=lfs /repo/models/golf_ball_frcnn.pt /app/models/golf_ball_frcnn.pt
 
 # Verify the ball tracking model is a real file (not a Git LFS pointer).
 RUN python3 verify_model.py && rm verify_model.py
