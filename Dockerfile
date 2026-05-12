@@ -3,7 +3,7 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install system dependencies for OpenCV, MediaPipe, PyTorch, and scipy
+# Install system dependencies for OpenCV, MediaPipe, PyTorch, scipy, and H.264 video encoding
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgl1 \
@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender-dev \
     libgomp1 \
     libopenblas0 \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables
@@ -32,6 +33,19 @@ RUN pip install --no-cache-dir --prefer-binary \
 
 # Copy remaining project files
 COPY . .
+
+# Verify the ball tracking model is a real file (not a Git LFS pointer).
+# Git LFS pointer files are ~130 bytes and start with "version ".
+# If the model is missing or is a pointer, warn but don't fail the build.
+RUN python3 -c "\
+import os; \
+model = 'models/golf_ball_frcnn.pt'; \
+if not os.path.exists(model): \
+    print('WARNING: Ball tracking model not found — ball tracking will be unavailable'); \
+elif os.path.getsize(model) < 1000: \
+    print('WARNING: Ball tracking model appears to be a Git LFS pointer — run \"git lfs pull\" before building'); \
+else: \
+    print(f'Ball tracking model OK ({os.path.getsize(model)//1024//1024} MB)')"
 
 EXPOSE 8000
 
