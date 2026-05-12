@@ -36,16 +36,7 @@ COPY . .
 
 # Verify the ball tracking model is a real file (not a Git LFS pointer).
 # Git LFS pointer files are ~130 bytes and start with "version ".
-# If the model is missing or is a pointer, warn but don't fail the build.
-RUN python3 -c "\
-import os; \
-model = 'models/golf_ball_frcnn.pt'; \
-if not os.path.exists(model): \
-    print('WARNING: Ball tracking model not found — ball tracking will be unavailable'); \
-elif os.path.getsize(model) < 1000: \
-    print('WARNING: Ball tracking model appears to be a Git LFS pointer — run \"git lfs pull\" before building'); \
-else: \
-    print(f'Ball tracking model OK ({os.path.getsize(model)//1024//1024} MB)')"
+RUN python3 verify_model.py && rm verify_model.py
 
 EXPOSE 8000
 
