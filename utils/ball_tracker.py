@@ -5,11 +5,13 @@ This module uses a BallDetector to track the golf ball across a short
 time window around the IMPACT phase and produces a smoothed 2D
 trajectory plus basic quality metrics.
 
-Key design:
-  - Full-frame detection runs FIRST (reliable across varied resolutions/FPS)
-  - Crop-based Kalman detection is used as refinement, not sole tracker
-  - Kalman resets when no detections for N consecutive frames (prevents drift)
-  - Total time budget and per-frame timeout prevent hanging on production
+Robustness layers applied per frame:
+  1. Proximity gate — rejects detections >threshold px from expected position
+     (searches through lower-confidence candidates for a closer match)
+  2. EMA smoothing — exponential moving average of accepted (x,y)
+     (eliminates frame-to-frame jitter)
+  3. Median filter → Gaussian smoothing in post-processing
+     (removes spike outliers after the full pass)
 """
 from __future__ import annotations
 
@@ -19,7 +21,7 @@ from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
-from scipy.ndimage import gaussian_filter1d
+from scipy.ndimage import gaussian_filter1d, median_filter
 
 from models.ball_detector import BallDetector, BallDetection
 
@@ -38,8 +40,7 @@ class BallTracker:
     Track the golf ball in a short window around the IMPACT phase.
 
     Processes every frame around impact using the ball detector.
-    Falls back gracefully when detections are sparse.
-    Includes timeouts to prevent production hangs on CPU.
+    Applies temporal consistency filters to reject noisy false positives.
     """
 
     def __init__(
@@ -54,11 +55,17 @@ class BallTracker:
         self.min_confidence = float(min_confidence)
         self.max_interpolation_gap = int(max_interpolation_gap)
 
-        # Safety limits to prevent infinite processing on production
-        self.max_total_frames = 150          # hard cap on frames processed per video
-        self.frame_timeout_sec = 8.0         # skip frame if detection takes longer
-        self.total_time_budget_sec = 180.0   # abort if total tracking exceeds this
-        self.max_consecutive_misses = 15     # stop early if ball lost for this many frames
+        # Production safety limits
+        self.max_total_frames = 150
+        self.frame_timeout_sec = 8.0
+        self.total_time_budget_sec = 180.0
+        self.max_consecutive_misses = 15
+
+        # Temporal consistency (adaptive — scaled to frame width in track())
+        self._prox_threshold_base = 0.06    # 6% of frame width as max jump
+        self._ema_alpha = 0.35              # smoothing: 0=no change, 1=raw
+        self._reacquire_boost = 2.0         # multiplier on prox threshold when recovering from gap
+        self._median_filter_size = 3        # window for post-hoc median filter
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -71,19 +78,6 @@ class BallTracker:
         fps: float,
         detector: BallDetector,
     ) -> Tuple[List[BallTrajectoryPoint], Dict[str, float]]:
-        """
-        Track ball trajectory around the IMPACT phase.
-
-        Args:
-            video_path: Path to video file.
-            impact_range: (start_frame, end_frame) of IMPACT phase.
-            fps: Video frames per second (used for time labels and motion scaling).
-            detector: Configured BallDetector instance.
-
-        Returns:
-            (trajectory_points, quality_metrics) — coordinates are in
-            original video pixel space regardless of any internal scaling.
-        """
         import time as _time
 
         path = Path(video_path)
@@ -102,7 +96,6 @@ class BallTracker:
         start_frame = max(0, impact_start - self.window_before_impact)
         end_frame = min(total_frames - 1, impact_end + self.window_after_impact)
 
-        # Apply hard frame cap
         num_to_process = end_frame - start_frame + 1
         if num_to_process > self.max_total_frames:
             end_frame = start_frame + self.max_total_frames - 1
@@ -111,25 +104,27 @@ class BallTracker:
 
         print(f"   Ball tracking: frames {start_frame}-{end_frame} ({num_to_process} frames) @ {fps:.0f} fps")
 
-        # Adaptive downscale for very large frames (4K+).
-        # Ball detection works best when the ball occupies ~10-30px.
+        # ── Adaptive thresholds ──
+        # Proximity gate: ball shouldn't jump more than ~6% of frame width
+        # (scaled for FPS — faster videos have smaller inter-frame motion)
+        prox_threshold = max(30, min(200, int(original_width * self._prox_threshold_base / max(1, fps / 30.0))))
+        reacquire_threshold = prox_threshold * self._reacquire_boost
+
+        # Downscale >1280px for detection speed
         max_process_dim = 1280
         scale_factor = 1.0
         if max(original_width, original_height) > max_process_dim:
             scale_factor = max_process_dim / max(original_width, original_height)
 
         if scale_factor != 1.0:
-            print(f"   Downscaling {original_width}x{original_height} → "
-                  f"{int(original_width*scale_factor)}x{int(original_height*scale_factor)} "
-                  f"for ball detection")
+            print(f"   Downscaling to {int(original_width*scale_factor)}x{int(original_height*scale_factor)}")
 
-        # Reset detector (Kalman filter) for fresh video
+        # Reset detector for fresh video
         if hasattr(detector, 'reset'):
             detector.reset()
 
-        # Expose adaptive crop size to the detector based on resolution
+        # Adaptive crop for detector
         effective_width = int(original_width * scale_factor) if scale_factor < 1.0 else original_width
-        effective_height = int(original_height * scale_factor) if scale_factor < 1.0 else original_height
         adaptive_crop = max(200, min(500, effective_width // 4))
         if hasattr(detector, 'set_adaptive_crop'):
             detector.set_adaptive_crop(adaptive_crop)
@@ -137,63 +132,102 @@ class BallTracker:
         trajectory: List[BallTrajectoryPoint] = []
         tracker_start_time = _time.time()
         consecutive_misses = 0
-        last_detection_frame = start_frame
+
+        # EMA state and previous accepted position
+        ema_x: Optional[float] = None
+        ema_y: Optional[float] = None
+        prev_accepted_x: Optional[float] = None
+        prev_accepted_y: Optional[float] = None
 
         try:
             cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
             current_frame = start_frame
 
             while current_frame <= end_frame:
-                # ── Time budget check ──
                 elapsed = _time.time() - tracker_start_time
                 if elapsed > self.total_time_budget_sec:
-                    print(f"   ⚠️  Total time budget ({self.total_time_budget_sec}s) exceeded at frame {current_frame}")
+                    print(f"   ⚠️  Time budget exceeded at frame {current_frame}")
                     break
-
-                # ── Early termination: ball lost for too long ──
                 if consecutive_misses >= self.max_consecutive_misses:
-                    print(f"   ⚠️  Ball lost for {consecutive_misses}+ frames — stopping early")
+                    print(f"   ⚠️  Ball lost for {consecutive_misses}+ frames — stopping")
                     break
 
                 ret, frame = cap.read()
                 if not ret:
                     break
 
-                # ── Downscale for detection ──
                 if scale_factor < 1.0:
                     proc_frame = cv2.resize(
-                        frame, (int(original_width * scale_factor), int(original_height * scale_factor)),
+                        frame,
+                        (int(original_width * scale_factor), int(original_height * scale_factor)),
                         interpolation=cv2.INTER_AREA,
                     )
                 else:
                     proc_frame = frame
 
-                # ── Per-frame detection with timeout ──
+                # Detect
                 detections: List[BallDetection] = []
-                det_start = _time.time()
                 try:
                     detections = detector.detect(proc_frame)
                 except Exception as e:
                     print(f"   ⚠️  Detection error at frame {current_frame}: {e}")
-                    detections = []
 
-                det_elapsed = _time.time() - det_start
-                if det_elapsed > 2.0:
-                    print(f"   Slow frame {current_frame}: detection took {det_elapsed:.1f}s")
+                # ── Temporal consistency: pick the best detection NEAR expected position ──
+                accepted_det: Optional[BallDetection] = None
+                inv_scale = 1.0 / scale_factor if scale_factor < 1.0 else 1.0
+
+                # Scale all candidate coordinates to original pixel space
+                for d in detections:
+                    d.x *= inv_scale
+                    d.y *= inv_scale
+
+                # Filter to candidates above min confidence
+                candidates = [d for d in detections if d.confidence >= self.min_confidence]
+
+                if candidates and prev_accepted_x is not None:
+                    # ── Proximity gate: prefer detections near expected position ──
+                    # First, try the highest-confidence detection
+                    candidates.sort(key=lambda d: d.confidence, reverse=True)
+
+                    # Adjust threshold: use larger threshold when recovering from a gap
+                    use_thresh = reacquire_threshold if consecutive_misses > 0 else prox_threshold
+
+                    for cand in candidates:
+                        dist = np.hypot(cand.x - prev_accepted_x, cand.y - prev_accepted_y)
+                        if dist <= use_thresh:
+                            accepted_det = cand
+                            break
+
+                    # If no candidate within proximity, try with 1.5x threshold
+                    if accepted_det is None:
+                        for cand in candidates:
+                            dist = np.hypot(cand.x - prev_accepted_x, cand.y - prev_accepted_y)
+                            if dist <= use_thresh * 1.5:
+                                accepted_det = cand
+                                break
+
+                elif candidates:
+                    # No previous position — accept highest confidence
+                    accepted_det = candidates[0]
 
                 # ── Build trajectory point ──
-                if detections and detections[0].confidence >= self.min_confidence:
-                    best = detections[0]
-                    inv_scale = 1.0 / scale_factor if scale_factor < 1.0 else 1.0
+                if accepted_det is not None:
+                    # EMA smoothing to reduce jitter
+                    if ema_x is None:
+                        ema_x, ema_y = accepted_det.x, accepted_det.y
+                    else:
+                        ema_x = ema_x * (1.0 - self._ema_alpha) + accepted_det.x * self._ema_alpha
+                        ema_y = ema_y * (1.0 - self._ema_alpha) + accepted_det.y * self._ema_alpha
+
                     point = BallTrajectoryPoint(
                         frame=current_frame,
                         t_sec=current_frame / fps,
-                        x=best.x * inv_scale,
-                        y=best.y * inv_scale,
-                        confidence=best.confidence,
+                        x=ema_x,
+                        y=ema_y,
+                        confidence=accepted_det.confidence,
                     )
+                    prev_accepted_x, prev_accepted_y = ema_x, ema_y
                     consecutive_misses = 0
-                    last_detection_frame = current_frame
                 else:
                     point = BallTrajectoryPoint(
                         frame=current_frame,
@@ -215,7 +249,7 @@ class BallTracker:
         if not trajectory:
             return [], {"status": "no_frames"}
 
-        # Smooth, interpolate, and compute quality
+        # Post-process: median filter + gaussian smooth + interpolate
         smoothed = self._smooth_and_interpolate(trajectory)
         quality = self._compute_quality_metrics(smoothed)
         quality["_elapsed_sec"] = round(float(elapsed_total), 1)
@@ -235,19 +269,29 @@ class BallTracker:
         self,
         points: List[BallTrajectoryPoint],
     ) -> List[BallTrajectoryPoint]:
-        """Gaussian smoothing + short-gap interpolation for x/y."""
+        """Median filter → gap interpolation → gaussian smooth."""
         frames = np.array([p.frame for p in points], dtype=np.int32)
-        xs = np.array(
-            [np.nan if p.x is None else p.x for p in points], dtype=np.float32
-        )
-        ys = np.array(
-            [np.nan if p.y is None else p.y for p in points], dtype=np.float32
-        )
+        xs = np.array([np.nan if p.x is None else p.x for p in points], dtype=np.float32)
+        ys = np.array([np.nan if p.y is None else p.y for p in points], dtype=np.float32)
 
+        # ── Median filter to remove spike outliers ──
+        if self._median_filter_size >= 3 and len(xs) > self._median_filter_size:
+            mask = ~np.isnan(xs)
+            if mask.sum() > self._median_filter_size:
+                xs_valid = np.where(mask, xs, 0)
+                xs_med = median_filter(xs_valid, size=self._median_filter_size, mode='nearest')
+                xs = np.where(mask, xs_med, np.nan)
+            mask_y = ~np.isnan(ys)
+            if mask_y.sum() > self._median_filter_size:
+                ys_valid = np.where(mask_y, ys, 0)
+                ys_med = median_filter(ys_valid, size=self._median_filter_size, mode='nearest')
+                ys = np.where(mask_y, ys_med, np.nan)
+
+        # ── Gap interpolation ──
         xs_filled = self._interpolate_short_gaps(frames, xs)
         ys_filled = self._interpolate_short_gaps(frames, ys)
 
-        # Apply gentle smoothing — adapt sigma to trajectory length
+        # ── Gaussian smoothing ──
         sigma = 1.0 if len(xs_filled) < 50 else 1.5
         if len(xs_filled) > 3:
             xs_smooth = gaussian_filter1d(xs_filled, sigma=sigma)
@@ -260,24 +304,15 @@ class BallTracker:
         for i, p in enumerate(points):
             x_val = float(xs_smooth[i]) if not np.isnan(xs_smooth[i]) else None
             y_val = float(ys_smooth[i]) if not np.isnan(ys_smooth[i]) else None
-            conf = p.confidence
-
-            smoothed.append(
-                BallTrajectoryPoint(
-                    frame=p.frame,
-                    t_sec=p.t_sec,
-                    x=x_val,
-                    y=y_val,
-                    confidence=conf,
-                )
-            )
+            smoothed.append(BallTrajectoryPoint(
+                frame=p.frame, t_sec=p.t_sec,
+                x=x_val, y=y_val, confidence=p.confidence,
+            ))
 
         return smoothed
 
     def _interpolate_short_gaps(
-        self,
-        frames: np.ndarray,
-        values: np.ndarray,
+        self, frames: np.ndarray, values: np.ndarray,
     ) -> np.ndarray:
         """Interpolate through gaps up to max_interpolation_gap frames."""
         arr = values.copy()
@@ -285,11 +320,9 @@ class BallTracker:
         if not isnan.any():
             return arr
 
-        idx = np.arange(len(arr))
         gap_starts: List[int] = []
         gap_ends: List[int] = []
         in_gap = False
-
         for i, is_missing in enumerate(isnan):
             if is_missing and not in_gap:
                 in_gap = True
@@ -297,7 +330,6 @@ class BallTracker:
             elif not is_missing and in_gap:
                 in_gap = False
                 gap_ends.append(i - 1)
-
         if in_gap:
             gap_ends.append(len(arr) - 1)
 
@@ -305,14 +337,12 @@ class BallTracker:
             gap_len = end - start + 1
             if gap_len > self.max_interpolation_gap:
                 continue
-
             left_idx = start - 1
             right_idx = end + 1
             if left_idx < 0 or right_idx >= len(arr):
                 continue
             if np.isnan(arr[left_idx]) or np.isnan(arr[right_idx]):
                 continue
-
             x0, x1 = frames[left_idx], frames[right_idx]
             y0, y1 = arr[left_idx], arr[right_idx]
             for i in range(start, end + 1):
@@ -323,17 +353,14 @@ class BallTracker:
         return arr
 
     def _compute_quality_metrics(
-        self,
-        points: List[BallTrajectoryPoint],
+        self, points: List[BallTrajectoryPoint],
     ) -> Dict[str, float]:
-        """Basic quality metrics for the tracked trajectory."""
         if not points:
             return {"status": "empty"}
 
         has_detection = [p.x is not None and p.y is not None for p in points]
         total = len(points)
         detected = sum(has_detection)
-
         detection_rate = detected / max(total, 1)
 
         longest_gap = 0
@@ -346,9 +373,7 @@ class BallTracker:
                 current_gap += 1
         longest_gap = max(longest_gap, current_gap)
 
-        avg_conf = float(
-            np.mean([p.confidence for p in points if p.confidence > 0.0])
-        ) if detected > 0 else 0.0
+        avg_conf = float(np.mean([p.confidence for p in points if p.confidence > 0.0])) if detected > 0 else 0.0
 
         return {
             "status": "ok" if detected > 0 else "no_detections",

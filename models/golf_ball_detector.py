@@ -177,7 +177,7 @@ class GolfBallDetector:
 
         h, w = frame_bgr.shape[:2]
 
-        # ── Step 1: Full-frame detection (always reliable) ──
+        # ── Step 1: Full-frame detection (baseline) ──
         all_results: List[BallDetection] = []
         try:
             detections = self._detect_on_frame(frame_bgr)
@@ -186,28 +186,34 @@ class GolfBallDetector:
             pass
 
         # ── Step 2: Crop-based detection (refinement when Kalman is tracking) ──
+        kalman_pred = None
         if self.enable_kalman and self._kalman.initialized and not self._kalman.should_reset():
             pred_x, pred_y = self._kalman.predict()
-            # Clamp prediction to frame bounds
             pred_x = max(0, min(w - 1, pred_x))
             pred_y = max(0, min(h - 1, pred_y))
+            kalman_pred = (pred_x, pred_y)
 
-            # Adaptive crop: larger for bigger frames (ball is relatively smaller)
-            adaptive_crop = self.crop_size
             crop_frame, offset_x, offset_y = self._crop_around(
-                frame_bgr, int(pred_x), int(pred_y), adaptive_crop
+                frame_bgr, int(pred_x), int(pred_y), self.crop_size
             )
             try:
                 crop_dets = self._detect_on_frame(crop_frame)
                 for det in crop_dets:
                     if not (np.isfinite(det.x) and np.isfinite(det.y)):
                         continue
+                    world_x = det.x + offset_x
+                    world_y = det.y + offset_y
+                    # Distance from Kalman prediction — closer = more likely to be the real ball
+                    pred_dist = np.hypot(world_x - pred_x, world_y - pred_y)
+                    # Crop detections get a confidence bonus inversely proportional to distance
+                    # from prediction. Max bonus ~0.15 for detections at the predicted spot.
+                    bonus = max(0.0, 0.15 * (1.0 - pred_dist / (self.crop_size * 0.6)))
                     all_results.append(BallDetection(
-                        x=det.x + offset_x,
-                        y=det.y + offset_y,
+                        x=world_x,
+                        y=world_y,
                         width=det.width,
                         height=det.height,
-                        confidence=det.confidence,
+                        confidence=min(1.0, det.confidence + bonus),
                     ))
             except Exception:
                 pass
