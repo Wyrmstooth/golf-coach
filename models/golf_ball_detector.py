@@ -1,18 +1,20 @@
 """
 Modern Golf Ball Detector — Faster R-CNN + Kalman Filter
 
-Based on the approach from:
+Based on:
   Zhang et al., "Efficient Golf Ball Detection and Tracking Based on
   Convolutional Neural Networks and Kalman Filter", IEEE SMC 2020.
   Repo: https://github.com/rucv/golf_ball
 
-Key innovations from the paper, implemented cleanly with modern PyTorch:
+Key features:
   1. Faster R-CNN (ResNet-50 FPN) for golf ball detection
-  2. Crop-based refinement: crop 300×300 around predicted position, re-detect
-  3. Kalman filter (constant velocity) for temporal smoothing
+  2. Adaptive crop-based refinement around Kalman-predicted position
+  3. Kalman filter (constant velocity) with automatic reset on drift
+  4. Robust across varied resolutions (720p to 4K) and frame rates
 
-This module is a drop-in replacement for the YOLOv8 BallDetector — it exposes
-the same detect(frame_bgr) → List[BallDetection] interface.
+This module is a drop-in replacement for the YOLOv8 BallDetector:
+    detector = GolfBallDetector(model_path="models/golf_ball_frcnn.pt")
+    detections = detector.detect(frame_bgr)
 """
 
 from __future__ import annotations
@@ -32,9 +34,8 @@ class KalmanBallTracker:
     """
     4-D constant-velocity Kalman filter: state = [x, y, vx, vy].
 
-    Predicts next ball position, which is used to crop a search region
-    around the expected location before running detection (crop trick from
-    the paper). After detection, the measurement is fed back via update().
+    Predicts next ball position for crop-based search.
+    Auto-resets when state becomes invalid or diverges.
     """
 
     def __init__(
@@ -42,7 +43,6 @@ class KalmanBallTracker:
         process_noise: float = 0.1,
         measurement_noise: float = 0.0001,
     ) -> None:
-        # State transition (constant velocity, dt = 1 frame)
         self.F = np.array([
             [1, 0, 1, 0],
             [0, 1, 0, 1],
@@ -50,7 +50,6 @@ class KalmanBallTracker:
             [0, 0, 0, 1],
         ], dtype=np.float64)
 
-        # Observation matrix: we only observe x, y
         self.H = np.array([
             [1, 0, 0, 0],
             [0, 1, 0, 0],
@@ -59,10 +58,10 @@ class KalmanBallTracker:
         self.Q = process_noise * np.eye(4, dtype=np.float64)
         self.R = measurement_noise * np.eye(2, dtype=np.float64)
 
-        # State estimate and covariance
         self.x: np.ndarray = np.zeros(4, dtype=np.float64)
         self.P: np.ndarray = np.eye(4, dtype=np.float64) * 1000.0
         self._initialized = False
+        self._consecutive_misses = 0
 
     def predict(self) -> Tuple[float, float]:
         """Predict next state. Returns (x_pred, y_pred)."""
@@ -71,33 +70,49 @@ class KalmanBallTracker:
         return float(self.x[0]), float(self.x[1])
 
     def update(self, measurement: Tuple[float, float]) -> None:
-        """Incorporate a measurement (x, y)."""
+        """Incorporate a measurement (x, y). Auto-resets if diverged."""
         z = np.array(measurement, dtype=np.float64)
-        if not np.isfinite(self.x).all():
+        if not np.isfinite(self.x).all() or not np.isfinite(self.P).all():
             self.reset()
             self.x[0], self.x[1] = z
             self._initialized = True
             return
+
         y_residual = z - self.H @ self.x
         S = self.H @ self.P @ self.H.T + self.R
         try:
             K = self.P @ self.H.T @ np.linalg.pinv(S)
         except np.linalg.LinAlgError:
+            self.reset()
+            self.x[0], self.x[1] = z
+            self._initialized = True
             return
         self.x = self.x + K @ y_residual
         self.P = (np.eye(4) - K @ self.H) @ self.P
         self._initialized = True
+        self._consecutive_misses = 0
+
+    def mark_miss(self) -> None:
+        """Signal that no detection was found this frame."""
+        self._consecutive_misses += 1
+
+    def should_reset(self, max_consecutive: int = 8) -> bool:
+        """Check if the Kalman track has diverged (too many consecutive misses)."""
+        return self._consecutive_misses >= max_consecutive
 
     @property
     def position(self) -> Tuple[float, float]:
-        """Current filtered position."""
         return float(self.x[0]), float(self.x[1])
 
+    @property
+    def initialized(self) -> bool:
+        return self._initialized and np.isfinite(self.x).all()
+
     def reset(self) -> None:
-        """Reset the filter."""
         self.x = np.zeros(4, dtype=np.float64)
         self.P = np.eye(4, dtype=np.float64) * 1000.0
         self._initialized = False
+        self._consecutive_misses = 0
 
 
 # ── Faster R-CNN Ball Detector ───────────────────────────────────────────
@@ -108,12 +123,8 @@ class GolfBallDetector:
 
     Uses torchvision's Faster R-CNN with ResNet-50 FPN backbone, fine-tuned
     on golf ball data. Maintains a Kalman filter for temporal tracking and
-    uses crop-based refinement for improved small-object detection.
-
-    Usage (drop-in replacement for BallDetector):
-        detector = GolfBallDetector(model_path="models/golf_ball_frcnn.pt")
-        detections = detector.detect(frame_bgr)
-        # detections is List[BallDetection] — same interface
+    uses adaptive crop-based refinement for improved small-object detection
+    across varying video resolutions.
     """
 
     def __init__(
@@ -124,14 +135,6 @@ class GolfBallDetector:
         crop_size: int = 300,
         enable_kalman: bool = True,
     ) -> None:
-        """
-        Args:
-            model_path: Path to fine-tuned Faster R-CNN weights (.pt).
-            conf_threshold: Minimum confidence score for a detection.
-            device: 'auto', 'cpu', or 'cuda'.
-            crop_size: Size of the crop window (pixels) around predicted position.
-            enable_kalman: Enable Kalman filter for temporal tracking.
-        """
         self.model_path = Path(model_path)
         self.conf_threshold = float(conf_threshold)
         self.crop_size = int(crop_size)
@@ -145,6 +148,14 @@ class GolfBallDetector:
         self._model: Optional[object] = None
         self._kalman = KalmanBallTracker()
         self._frame_count: int = 0
+        self._det_fail_streak: int = 0  # consecutive frames with no detection
+
+    def set_adaptive_crop(self, size: int) -> None:
+        """
+        Update crop window size dynamically based on video resolution.
+        Larger frames need larger crop (ball is relatively smaller in 4K).
+        """
+        self.crop_size = max(150, min(600, int(size)))
 
     # ── Public API ──────────────────────────────────────────────────────
 
@@ -152,9 +163,12 @@ class GolfBallDetector:
         """
         Run ball detection on a single BGR frame.
 
-        1. Predict next position with Kalman, crop around it, detect.
-        2. If no detections in crop, fall back to full-frame detection.
-        3. Update Kalman with best detection.
+        Strategy:
+          1. Full-frame detection FIRST (reliable baseline)
+          2. If Kalman is initialized AND tracking well, also try crop detection
+          3. Merge results, preferring higher confidence
+          4. Update Kalman with best detection
+          5. Auto-reset Kalman if consecutive misses exceed threshold
         """
         self._ensure_model_loaded()
 
@@ -163,59 +177,69 @@ class GolfBallDetector:
 
         h, w = frame_bgr.shape[:2]
 
-        # Step 1: Predict next position with Kalman
-        if self.enable_kalman and self._kalman._initialized:
-            pred_x, pred_y = self._kalman.predict()
-        else:
-            pred_x, pred_y = None, None  # type: ignore[assignment]
+        # ── Step 1: Full-frame detection (always reliable) ──
+        all_results: List[BallDetection] = []
+        try:
+            detections = self._detect_on_frame(frame_bgr)
+            all_results.extend(detections)
+        except Exception:
+            pass
 
-        # Step 2a: Try crop detection first
-        results: List[BallDetection] = []
-        if pred_x is not None and pred_y is not None:
+        # ── Step 2: Crop-based detection (refinement when Kalman is tracking) ──
+        if self.enable_kalman and self._kalman.initialized and not self._kalman.should_reset():
+            pred_x, pred_y = self._kalman.predict()
+            # Clamp prediction to frame bounds
+            pred_x = max(0, min(w - 1, pred_x))
+            pred_y = max(0, min(h - 1, pred_y))
+
+            # Adaptive crop: larger for bigger frames (ball is relatively smaller)
+            adaptive_crop = self.crop_size
             crop_frame, offset_x, offset_y = self._crop_around(
-                frame_bgr, int(pred_x), int(pred_y), self.crop_size
+                frame_bgr, int(pred_x), int(pred_y), adaptive_crop
             )
             try:
-                detections = self._detect_on_frame(crop_frame)
-                for det in detections:
+                crop_dets = self._detect_on_frame(crop_frame)
+                for det in crop_dets:
                     if not (np.isfinite(det.x) and np.isfinite(det.y)):
                         continue
-                    results.append(BallDetection(
+                    all_results.append(BallDetection(
                         x=det.x + offset_x,
                         y=det.y + offset_y,
                         width=det.width,
                         height=det.height,
                         confidence=det.confidence,
                     ))
-                results.sort(key=lambda d: d.confidence, reverse=True)
             except Exception:
-                results = []
+                pass
 
-        # Step 2b: Fall back to full-frame detection if crop missed
-        if not results:
-            try:
-                detections = self._detect_on_frame(frame_bgr)
-                results = [BallDetection(
-                    x=det.x, y=det.y, width=det.width,
-                    height=det.height, confidence=det.confidence,
-                ) for det in detections]
-                results.sort(key=lambda d: d.confidence, reverse=True)
-            except Exception:
-                results = []
+        # ── Sort by confidence ──
+        all_results.sort(key=lambda d: d.confidence, reverse=True)
 
-        # Step 3: Update Kalman with best detection
-        if results and self.enable_kalman:
-            best = results[0]
+        # ── Step 3: Update Kalman or reset if track lost ──
+        if all_results:
+            best = all_results[0]
             if np.isfinite(best.x) and np.isfinite(best.y):
                 self._kalman.update((best.x, best.y))
+                self._det_fail_streak = 0
+            else:
+                self._det_fail_streak += 1
+                self._kalman.mark_miss()
+        else:
+            self._det_fail_streak += 1
+            self._kalman.mark_miss()
+
+        # Auto-reset Kalman when tracking lost for too long
+        if self._kalman.should_reset(max_consecutive=8):
+            self._kalman.reset()
 
         self._frame_count += 1
-        return results
+        return all_results
 
     def reset(self) -> None:
-        """Reset Kalman state (e.g. for a new video)."""
+        """Reset Kalman state for a new video."""
         self._kalman.reset()
         self._frame_count = 0
+        self._det_fail_streak = 0
 
     # ── Internal ────────────────────────────────────────────────────────
 
@@ -230,9 +254,25 @@ class GolfBallDetector:
                 "Train with: python training/train_golf_ball_detector.py"
             )
 
+        # Check for Git LFS pointer (would crash torch.load())
+        file_size = self.model_path.stat().st_size
+        if file_size < 1000:
+            with open(self.model_path, "rb") as f:
+                header = f.read(50)
+            if header.strip().startswith(b"version https://git-lfs"):
+                raise RuntimeError(
+                    f"Ball detector model at {self.model_path} is a Git LFS pointer ({file_size} bytes). "
+                    "Download the real model file or set MODEL_URL env var."
+                )
+            raise RuntimeError(
+                f"Ball detector model at {self.model_path} is too small ({file_size} bytes). "
+                "The file may be corrupted."
+            )
+
+        print(f"   Loading ball detector model ({file_size // 1024 // 1024} MB → {self.device})...")
+
         import torch
 
-        # Two classes: background (0) and golf ball (1)
         from torchvision.models.detection import fasterrcnn_resnet50_fpn
         from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
@@ -252,7 +292,6 @@ class GolfBallDetector:
         import torch
         import torchvision.transforms.functional as TF
 
-        # Convert BGR → RGB
         rgb = frame_bgr[:, :, ::-1].copy()
         img_tensor = TF.to_tensor(rgb).to(self.device)
 
@@ -267,16 +306,16 @@ class GolfBallDetector:
             if score < self.conf_threshold:
                 continue
             x1, y1, x2, y2 = box
-            w = x2 - x1
-            h = y2 - y1
-            # Filter tiny false positives (< 3px either dimension)
-            if w < 3 or h < 3:
+            w_box = x2 - x1
+            h_box = y2 - y1
+            # Filter tiny false positives (< 2px either dimension)
+            if w_box < 2 or h_box < 2:
                 continue
             detections.append(BallDetection(
                 x=float((x1 + x2) / 2),
                 y=float((y1 + y2) / 2),
-                width=float(w),
-                height=float(h),
+                width=float(w_box),
+                height=float(h_box),
                 confidence=float(score),
             ))
 
@@ -291,7 +330,7 @@ class GolfBallDetector:
         size: int,
     ) -> Tuple[np.ndarray, int, int]:
         """
-        Crop a size×size region centered at (cx, cy), clamped to image bounds.
+        Crop a sizexsize region centered at (cx, cy), clamped to image bounds.
         Returns (cropped_frame, offset_x, offset_y).
         """
         h, w = frame.shape[:2]

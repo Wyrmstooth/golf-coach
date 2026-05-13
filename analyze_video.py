@@ -129,9 +129,18 @@ class MLSwingAnalyzer:
                 self.ball_tracker = BallTracker(
                     window_before_impact=ball_track_cfg.get("window_before_impact", 5),
                     window_after_impact=ball_track_cfg.get("window_after_impact", 70),
-                    min_confidence=ball_track_cfg.get("min_confidence", 0.4),
+                    min_confidence=ball_track_cfg.get("min_confidence", 0.35),
                     max_interpolation_gap=ball_track_cfg.get("max_interpolation_gap", 5),
                 )
+                # Apply production safety limits from config (prevents CPU hangs)
+                if "max_total_frames" in ball_track_cfg:
+                    self.ball_tracker.max_total_frames = int(ball_track_cfg["max_total_frames"])
+                if "frame_timeout_sec" in ball_track_cfg:
+                    self.ball_tracker.frame_timeout_sec = float(ball_track_cfg["frame_timeout_sec"])
+                if "total_time_budget_sec" in ball_track_cfg:
+                    self.ball_tracker.total_time_budget_sec = float(ball_track_cfg["total_time_budget_sec"])
+                if "max_consecutive_misses" in ball_track_cfg:
+                    self.ball_tracker.max_consecutive_misses = int(ball_track_cfg["max_consecutive_misses"])
                 self.distance_estimator = DistanceEstimator(
                     pixel_to_meter=dist_cfg.get("pixel_to_meter", 0.02),
                     gravity=dist_cfg.get("gravity", 9.81),
