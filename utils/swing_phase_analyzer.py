@@ -22,19 +22,22 @@ class SwingPhaseAnalyzer:
         frame_data: List[Dict],
         smoothing_window: int = 5,
         precheck_window: int = 30,
-        threshold_percentile: int = 90
+        threshold_percentile: int = 90,
+        fps: float = 30.0,
     ) -> Tuple[Dict[str, Tuple[int, int]], int, int, np.ndarray, np.ndarray]:
         """
         Detect golf swing phases from trajectory data.
 
         Uses multi-metric analysis: wrist trajectory, hip rotation, shoulder alignment.
         All thresholds adapt to the actual data range — works across resolutions.
+        Frame-based windows are scaled to FPS for consistent behavior at any speed.
 
         Args:
             frame_data: List of dicts with frame_idx, wrist_y, hip_rotation, shoulder_rotation
             smoothing_window: Base window size for smoothing
             precheck_window: Max frames to check for static ADDRESS
             threshold_percentile: Percentile for motion threshold
+            fps: Video frame rate (scales frame-based windows)
 
         Returns:
             phase_ranges, swing_start, swing_end, wrist_y_raw, wrist_y_smoothed
@@ -52,6 +55,9 @@ class SwingPhaseAnalyzer:
             }
             return empty_phases, 0, last, np.array([]), np.array([])
 
+        # Scale frame-based windows to a 30fps reference
+        fps_scale = max(0.5, min(3.0, fps / 30.0))
+
         # ── Extract signals ──
         wrist_y = np.array([
             d.get("wrist_y", np.nan)
@@ -67,8 +73,9 @@ class SwingPhaseAnalyzer:
         ], dtype=np.float32)
 
         # ── Adaptive smoothing ──
-        # Scale window to video length: longer videos get stronger smoothing
-        adaptive_window = max(3, min(smoothing_window, n_frames // 15))
+        # Scale window to video length AND FPS
+        base_window = max(3, min(smoothing_window, n_frames // 15))
+        adaptive_window = max(3, int(base_window * fps_scale))
         smoothed_wrist = self._prepare_signal(wrist_y, adaptive_window)
         smoothed_hip = self._prepare_signal(hip_rot, adaptive_window)
         smoothed_shoulder = self._prepare_signal(shoulder_rot, adaptive_window)
@@ -81,8 +88,9 @@ class SwingPhaseAnalyzer:
         )
 
         # ── Adaptive precheck_window ──
-        # For very short videos, limit the precheck search area
-        adaptive_precheck = min(precheck_window, max(5, n_frames // 5))
+        # Scale by both video length and FPS
+        raw_precheck = min(precheck_window, max(5, n_frames // 5))
+        adaptive_precheck = max(5, int(raw_precheck * fps_scale))
 
         # ── Swing window detection ──
         swing_start, swing_end = self._detect_swing_window(
@@ -109,12 +117,22 @@ class SwingPhaseAnalyzer:
             smoothed_wrist, top_range, swing_end, address_y_level
         )
 
-        # ── Build phase ranges ──
+        # ── Build phase ranges with ZERO gaps ──
         backswing_end = max(swing_start + 1, top_range[0])
-        downswing_end = max(top_range[1] + 1, impact_range[0])
+        top_end = max(backswing_end + 1, top_range[1])
 
-        # Defensive check: ensure minimum 1-frame durations
-        def _safe_range(a, b):
+        # Downswing: TOP end → impact start
+        downswing_start = top_end
+        impact_start = impact_range[0]
+        downswing_end = max(downswing_start + 1, impact_start)
+
+        # Impact: downswing end → impact end
+        impact_end = max(downswing_end + 1, impact_range[1])
+
+        # Follow-through: impact end → swing end (ALWAYS covers to end, NO gaps)
+        ft_start = impact_end
+
+        def _safe(a: int, b: int) -> Tuple[int, int]:
             a = int(a)
             b = int(b)
             if b <= a:
@@ -122,12 +140,12 @@ class SwingPhaseAnalyzer:
             return (a, b)
 
         phase_ranges = {
-            "ADDRESS": _safe_range(address_start, address_end),
-            "BACKSWING": _safe_range(swing_start, backswing_end),
-            "TOP": _safe_range(backswing_end, max(backswing_end + 1, top_range[1])),
-            "DOWNSWING": _safe_range(max(backswing_end + 1, top_range[1]), downswing_end),
-            "IMPACT": _safe_range(downswing_end, max(downswing_end + 1, impact_range[1])),
-            "FOLLOW_THROUGH": _safe_range(max(downswing_end + 1, impact_range[1]), swing_end)
+            "ADDRESS":        _safe(address_start, address_end),
+            "BACKSWING":      _safe(swing_start, backswing_end),
+            "TOP":            _safe(backswing_end, top_end),
+            "DOWNSWING":      _safe(downswing_start, downswing_end),
+            "IMPACT":         _safe(downswing_end, impact_end),
+            "FOLLOW_THROUGH": _safe(ft_start, swing_end),
         }
 
         return phase_ranges, swing_start, swing_end, wrist_y, smoothed_wrist
@@ -371,9 +389,12 @@ class SwingPhaseAnalyzer:
         """
         Find IMPACT phase (ball contact zone).
 
-        Impact = wrist returns to ~90% of the backswing excursion.
-        Uses an adaptive crossing threshold based on actual data.
-        Falls back to max velocity if crossing never reached.
+        Strategy:
+          1. Position-based: wrist returns to 95% of the way back to address level.
+          2. Velocity-based: the first frame AFTER the max downward velocity,
+             since impact happens after the club whips through max acceleration.
+          3. The LATER of the two estimates is used (conservative — avoids firing
+             impact while the downswing is still ongoing).
         """
         post_top_start = top_range[1]
         post_top = smoothed[post_top_start:swing_end]
@@ -389,19 +410,30 @@ class SwingPhaseAnalyzer:
             velocity = np.gradient(post_top)
             impact_idx = int(np.nanargmax(np.abs(velocity)))
         else:
-            # Adaptive crossing: 88% of way back to address
-            crossing_frac = 0.88
+            # ── Position-based: 95% of the way back to address ──
+            crossing_frac = 0.95
             crossing = top_y + wrist_excursion * crossing_frac
 
-            impact_idx = None
+            position_idx = None
             for i in range(len(post_top)):
                 if post_top[i] >= crossing:
-                    impact_idx = i
+                    position_idx = i
                     break
 
-            if impact_idx is None:
-                # Fallback: furthest point in forward swing
-                impact_idx = int(np.nanargmax(post_top))
+            if position_idx is None:
+                position_idx = int(np.nanargmax(post_top))
+
+            # ── Velocity-based: max velocity point (peak of downswing speed) ──
+            velocity = np.gradient(post_top)
+            velocity_idx = int(np.nanargmax(velocity))  # max forward velocity
+
+            # Use the LATER of the two (more conservative — keeps impact at
+            # the correct moment of peak club speed rather than early crossing).
+            impact_idx = max(position_idx, velocity_idx)
+
+            # Safety clamp: never more than 3 frames past the crossing index
+            # in case velocity peak is an outlier far down the range
+            impact_idx = min(impact_idx, position_idx + 3)
 
         left = max(0, int(impact_idx) - 2)
         right = min(len(post_top) - 1, int(impact_idx) + 2)
