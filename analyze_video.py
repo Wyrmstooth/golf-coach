@@ -215,14 +215,8 @@ class MLSwingAnalyzer:
         if verbose:
             print("\n[2/6] Detecting swing phases...")
 
-        # Get FPS for frame-window scaling
-        import cv2
-        cap = cv2.VideoCapture(str(video_path))
-        raw_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-        cap.release()
-
         phase_ranges, swing_start, swing_end, wrist_y, smoothed = \
-            self.phase_analyzer.detect_phases(frame_data, fps=float(raw_fps))
+            self.phase_analyzer.detect_phases(frame_data)
 
         if verbose:
             print("\n📊 Detected phases:")
@@ -238,6 +232,7 @@ class MLSwingAnalyzer:
             print("\n[3/6] Extracting biomechanical features...")
 
         # Use cached landmarks from trajectory extraction (no reprocessing!)
+        import cv2
         cap = cv2.VideoCapture(str(video_path))
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
