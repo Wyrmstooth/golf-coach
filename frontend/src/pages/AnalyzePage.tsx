@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { RotateCcw, Image, Target, AlertCircle, RefreshCw, Clock, TrendingUp, Camera, ShieldCheck, Sparkles } from "lucide-react";
+import { RotateCcw, Image, Target, AlertCircle, RefreshCw, Clock, TrendingUp, Camera, ShieldCheck, Sparkles, Settings2 } from "lucide-react";
 
 import PageWrapper from "../components/layout/PageWrapper";
 import VideoDropzone from "../components/upload/VideoDropzone";
@@ -33,6 +33,12 @@ export default function AnalyzePage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [searchParams] = useSearchParams();
   const didLoadJob = useRef(false);
+
+  // Analysis options toggles
+  const [showOptions, setShowOptions] = useState(false);
+  const [optBallTracking, setOptBallTracking] = useState(true);
+  const [optPerformance, setOptPerformance] = useState(true);
+  const [optVideoRender, setOptVideoRender] = useState(true);
 
   // Load past analysis from URL param (works with both hash and regular routing)
   useEffect(() => {
@@ -83,7 +89,11 @@ export default function AnalyzePage() {
       await new Promise((r) => setTimeout(r, 800));
 
       setPhase("analyzing");
-      const { job_id } = await uploadVideo(file);
+      const { job_id } = await uploadVideo(file, {
+        skipBallTracking: !optBallTracking,
+        skipPerformance: !optPerformance,
+        skipVideoRender: !optVideoRender,
+      });
       setJobId(job_id);
     } catch (err: any) {
       console.error(err);
@@ -152,6 +162,70 @@ export default function AnalyzePage() {
               {phase === "idle" && (
                 <>
                   <VideoDropzone onFile={setFile} />
+
+                  {/* ── Analysis Options ── */}
+                  <div className="glass rounded-xl border border-white/[0.06] overflow-hidden">
+                    <button
+                      onClick={() => setShowOptions(!showOptions)}
+                      className="w-full flex items-center justify-between px-5 py-3 text-sm text-white/40 hover:text-white/60 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Settings2 size={13} />
+                        Analysis Options
+                      </span>
+                      <motion.span
+                        animate={{ rotate: showOptions ? 180 : 0 }}
+                        className="text-white/25 text-xs"
+                      >
+                        ▼
+                      </motion.span>
+                    </button>
+                    {showOptions && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        className="px-5 pb-4 space-y-3"
+                      >
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <span className="text-xs text-white/50">Ball Tracking</span>
+                          <button
+                            onClick={() => setOptBallTracking(!optBallTracking)}
+                            className={`relative w-9 h-5 rounded-full transition-colors ${optBallTracking ? "bg-golf-green" : "bg-white/[0.12]"}`}
+                          >
+                            <motion.div
+                              animate={{ x: optBallTracking ? 16 : 2 }}
+                              className="w-3.5 h-3.5 rounded-full bg-white absolute top-0.5"
+                            />
+                          </button>
+                        </label>
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <span className="text-xs text-white/50">Performance Predictor</span>
+                          <button
+                            onClick={() => setOptPerformance(!optPerformance)}
+                            className={`relative w-9 h-5 rounded-full transition-colors ${optPerformance ? "bg-golf-green" : "bg-white/[0.12]"}`}
+                          >
+                            <motion.div
+                              animate={{ x: optPerformance ? 16 : 2 }}
+                              className="w-3.5 h-3.5 rounded-full bg-white absolute top-0.5"
+                            />
+                          </button>
+                        </label>
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <span className="text-xs text-white/50">Annotated Video</span>
+                          <button
+                            onClick={() => setOptVideoRender(!optVideoRender)}
+                            className={`relative w-9 h-5 rounded-full transition-colors ${optVideoRender ? "bg-golf-green" : "bg-white/[0.12]"}`}
+                          >
+                            <motion.div
+                              animate={{ x: optVideoRender ? 16 : 2 }}
+                              className="w-3.5 h-3.5 rounded-full bg-white absolute top-0.5"
+                            />
+                          </button>
+                        </label>
+                      </motion.div>
+                    )}
+                  </div>
+
                   <motion.button
                     whileHover={file ? { scale: 1.03, boxShadow: "0 0 36px rgba(16,185,129,0.5)" } : {}}
                     whileTap={file ? { scale: 0.97 } : {}}

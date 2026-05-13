@@ -162,6 +162,8 @@ class MLSwingAnalyzer:
         output_dir: str = "output",
         verbose: bool = True,
         skip_video_render: bool = False,
+        skip_ball_tracking: bool = False,
+        skip_performance_prediction: bool = False,
         progress_callback=None,
     ) -> dict:
         """
@@ -172,6 +174,8 @@ class MLSwingAnalyzer:
             output_dir: Output directory
             verbose: Show progress
             skip_video_render: Skip creating annotated video (much faster)
+            skip_ball_tracking: Skip Module 3 ball tracking
+            skip_performance_prediction: Skip ML performance prediction
             progress_callback: Optional callable(percent: int) called at each step
 
         Returns:
@@ -338,54 +342,55 @@ class MLSwingAnalyzer:
                 print("   ⚠️  Fault detector not loaded - skipping")
 
         # =====================================================================
-        # STEP 5: ML Performance Prediction (Module 2)
+        # STEP 5: ML Performance Prediction (Module 2) — skippable
         # =====================================================================
         _progress(72)
-        if verbose:
-            print("\n[5/6] Predicting shot performance...")
-
         performance_results = None
-        if self.performance_predictor:
-            # Reuse CaddieSet features from fault detection
-            if not fault_results:
-                # Extract if fault detection was skipped
-                caddieset_features = self.caddieset_extractor.extract_from_landmarks(
-                    landmarks_sequence, phase_ranges, frame_height, frame_width
-                )
-            
-            # Predict performance using CaddieSet-compatible features
-            performance_results = self.performance_predictor.predict(caddieset_features)
 
+        if not skip_performance_prediction:
             if verbose:
-                print(f"\n🎯 Estimated Performance:")
-                print(f"   Ball Speed:  {performance_results['BallSpeed']:.1f} mph")
-                print(f"   Distance:    {performance_results['Distance']:.1f} yards")
-                print(f"   Carry:       {performance_results['Carry']:.1f} yards")
-                print(f"   Confidence:  {performance_results['confidence']:.1f}%")
-        else:
-            if verbose:
-                print("   ⚠️  Performance predictor not loaded - using heuristics")
-            
-            # Use heuristics even without ML model
-            phase_aggregated = self._aggregate_features_by_phase(
-                features_sequence, phase_ranges
-            )
-            performance_results = self._estimate_performance(phase_aggregated)
-            
-            if verbose:
-                print(f"\n🎯 Estimated Performance (Heuristic):")
-                print(f"   Ball Speed:  {performance_results['BallSpeed']:.1f} mph")
-                print(f"   Distance:    {performance_results['Distance']:.1f} yards")
-                print(f"   Carry:       {performance_results['Carry']:.1f} yards")
+                print("\n[5/6] Predicting shot performance...")
+
+            if self.performance_predictor:
+                # Reuse CaddieSet features from fault detection
+                if not fault_results:
+                    caddieset_features = self.caddieset_extractor.extract_from_landmarks(
+                        landmarks_sequence, phase_ranges, frame_height, frame_width
+                    )
+
+                performance_results = self.performance_predictor.predict(caddieset_features)
+
+                if verbose:
+                    print(f"\n🎯 Estimated Performance:")
+                    print(f"   Ball Speed:  {performance_results['BallSpeed']:.1f} mph")
+                    print(f"   Distance:    {performance_results['Distance']:.1f} yards")
+                    print(f"   Carry:       {performance_results['Carry']:.1f} yards")
+                    print(f"   Confidence:  {performance_results['confidence']:.1f}%")
+            else:
+                if verbose:
+                    print("   ⚠️  Performance predictor not loaded - using heuristics")
+
+                phase_aggregated = self._aggregate_features_by_phase(
+                    features_sequence, phase_ranges
+                )
+                performance_results = self._estimate_performance(phase_aggregated)
+
+                if verbose:
+                    print(f"\n🎯 Estimated Performance (Heuristic):")
+                    print(f"   Ball Speed:  {performance_results['BallSpeed']:.1f} mph")
+                    print(f"   Distance:    {performance_results['Distance']:.1f} yards")
+                    print(f"   Carry:       {performance_results['Carry']:.1f} yards")
+        elif verbose:
+            print("\n[5/6] Skipping performance prediction (user opted out)")
 
         # =====================================================================
-        # STEP 6: Module 3 - Ball Tracking & Distance Estimation (optional)
+        # STEP 6: Module 3 - Ball Tracking & Distance Estimation (skippable)
         # =====================================================================
         ball_trajectory: Optional[List[BallTrajectoryPoint]] = None
         ball_quality: Optional[Dict[str, float]] = None
         ball_distance: Optional[Dict[str, float]] = None
 
-        if self.module3_enabled and self.ball_detector and self.ball_tracker:
+        if not skip_ball_tracking and self.module3_enabled and self.ball_detector and self.ball_tracker:
             _progress(80)
             if verbose:
                 print("\n[6/6] Tracking ball trajectory (Module 3)...")

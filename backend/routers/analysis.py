@@ -92,6 +92,9 @@ def _run_analysis(
     output_dir: str,
     user_id: int | None = None,
     video_filename: str = "",
+    skip_ball_tracking: bool = False,
+    skip_performance_prediction: bool = False,
+    skip_video_render: bool = False,
 ) -> None:
     """
     Blocking analysis function executed in a thread-pool worker.
@@ -115,7 +118,9 @@ def _run_analysis(
             video_path=video_path,
             output_dir=output_dir,
             verbose=False,
-            skip_video_render=False,
+            skip_video_render=skip_video_render,
+            skip_ball_tracking=skip_ball_tracking,
+            skip_performance_prediction=skip_performance_prediction,
             progress_callback=_on_progress,
         )
         job_store.update(
@@ -159,16 +164,25 @@ def _run_analysis(
 async def analyze_video(
     file: UploadFile = File(...),
     current_user=Depends(get_optional_user),
+    skip_ball_tracking: bool = False,
+    skip_performance_prediction: bool = False,
+    skip_video_render: bool = False,
 ) -> Dict[str, str]:
     """
     Accept a multipart video upload, save it, kick off background analysis,
     and return the job_id for polling.
+
+    Optional query params:
+        skip_ball_tracking — skip Module 3 ball trajectory tracking
+        skip_performance_prediction — skip ML performance prediction
+        skip_video_render — skip creating annotated video
     """
     logger.info(f"Analyze endpoint called. Current user: {current_user}")
     if current_user:
         logger.info(f"  User ID: {current_user.id}, Email: {current_user.email}")
     else:
         logger.info("  No user logged in (anonymous analysis)")
+    logger.info(f"  Options: skip_ball={skip_ball_tracking}, skip_perf={skip_performance_prediction}, skip_video={skip_video_render}")
     
     suffix = Path(file.filename or "video.mp4").suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
@@ -205,6 +219,9 @@ async def analyze_video(
         output_dir,
         user_id,
         file.filename or "",
+        skip_ball_tracking,
+        skip_performance_prediction,
+        skip_video_render,
     )
 
     return {"job_id": job_id}

@@ -47,7 +47,7 @@ class BallTracker:
         self,
         window_before_impact: int = 5,
         window_after_impact: int = 70,
-        min_confidence: float = 0.4,
+        min_confidence: float = 0.3,
         max_interpolation_gap: int = 5,
     ) -> None:
         self.window_before_impact = int(window_before_impact)
@@ -59,12 +59,13 @@ class BallTracker:
         self.max_total_frames = 150
         self.frame_timeout_sec = 8.0
         self.total_time_budget_sec = 180.0
-        self.max_consecutive_misses = 15
+        self.max_consecutive_misses = 25
 
         # Temporal consistency (adaptive — scaled to frame width in track())
-        self._prox_threshold_base = 0.06    # 6% of frame width as max jump
-        self._ema_alpha = 0.35              # smoothing: 0=no change, 1=raw
-        self._reacquire_boost = 2.0         # multiplier on prox threshold when recovering from gap
+        self._prox_threshold_base = 0.20    # 20% of frame width — ball can move fast
+        self._ema_alpha = 0.30              # smoothing: 0=no change, 1=raw
+        self._ema_warmup_frames = 3         # frames before EMA kicks in
+        self._reacquire_boost = 5.0         # multiplier on prox threshold when recovering from gap
         self._median_filter_size = 3        # window for post-hoc median filter
 
     # ------------------------------------------------------------------ #
@@ -172,11 +173,12 @@ class BallTracker:
                 except Exception as e:
                     print(f"   ⚠️  Detection error at frame {current_frame}: {e}")
 
-                # ── Temporal consistency: pick the best detection NEAR expected position ──
+                # ── Temporal consistency: prefer detection near expected position ──
                 accepted_det: Optional[BallDetection] = None
                 inv_scale = 1.0 / scale_factor if scale_factor < 1.0 else 1.0
+                is_jump = False  # track if we accepted a far-away detection
 
-                # Scale all candidate coordinates to original pixel space
+                # Scale all candidates to original pixel space
                 for d in detections:
                     d.x *= inv_scale
                     d.y *= inv_scale
@@ -184,40 +186,48 @@ class BallTracker:
                 # Filter to candidates above min confidence
                 candidates = [d for d in detections if d.confidence >= self.min_confidence]
 
-                if candidates and prev_accepted_x is not None:
-                    # ── Proximity gate: prefer detections near expected position ──
-                    # First, try the highest-confidence detection
+                if candidates and prev_accepted_x is not None and consecutive_misses < 3:
+                    # ── Proximity-aware selection: prefer near, but don't reject far ──
                     candidates.sort(key=lambda d: d.confidence, reverse=True)
 
-                    # Adjust threshold: use larger threshold when recovering from a gap
+                    # Adjust threshold: larger when recovering from a gap
                     use_thresh = reacquire_threshold if consecutive_misses > 0 else prox_threshold
 
-                    for cand in candidates:
-                        dist = np.hypot(cand.x - prev_accepted_x, cand.y - prev_accepted_y)
-                        if dist <= use_thresh:
-                            accepted_det = cand
-                            break
+                    # Find the closest candidate
+                    closest = min(candidates, key=lambda d: np.hypot(d.x - prev_accepted_x, d.y - prev_accepted_y))
+                    closest_dist = np.hypot(closest.x - prev_accepted_x, closest.y - prev_accepted_y)
 
-                    # If no candidate within proximity, try with 1.5x threshold
-                    if accepted_det is None:
-                        for cand in candidates:
-                            dist = np.hypot(cand.x - prev_accepted_x, cand.y - prev_accepted_y)
-                            if dist <= use_thresh * 1.5:
-                                accepted_det = cand
-                                break
+                    if closest_dist <= use_thresh:
+                        # Close candidate — use it
+                        accepted_det = closest
+                    else:
+                        # All candidates are far — still accept the closest (ball moved fast)
+                        # but flag it so we don't EMA-smooth this jump
+                        accepted_det = closest
+                        is_jump = True
 
                 elif candidates:
-                    # No previous position — accept highest confidence
+                    # No previous position (or been lost for a while) — accept highest confidence
                     accepted_det = candidates[0]
+                # else: no candidates above threshold — leave as None (gap)
+
+                # If NO high-confidence candidates at all, accept any detection above 0.2
+                if accepted_det is None and detections:
+                    fallback = max(detections, key=lambda d: d.confidence)
+                    if fallback.confidence >= 0.2:
+                        accepted_det = fallback
 
                 # ── Build trajectory point ──
                 if accepted_det is not None:
-                    # EMA smoothing to reduce jitter
-                    if ema_x is None:
-                        ema_x, ema_y = accepted_det.x, accepted_det.y
-                    else:
+                    frames_since_start = current_frame - start_frame
+
+                    # EMA smoothing (skip on jumps and during warmup)
+                    if (not is_jump and ema_x is not None
+                            and frames_since_start >= self._ema_warmup_frames):
                         ema_x = ema_x * (1.0 - self._ema_alpha) + accepted_det.x * self._ema_alpha
                         ema_y = ema_y * (1.0 - self._ema_alpha) + accepted_det.y * self._ema_alpha
+                    else:
+                        ema_x, ema_y = accepted_det.x, accepted_det.y
 
                     point = BallTrajectoryPoint(
                         frame=current_frame,
