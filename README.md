@@ -2,39 +2,358 @@
 
 **AI-powered golf swing analysis using MediaPipe pose estimation, ML fault detection, ball tracking, performance prediction, and real-time feedback — served via a modern React + FastAPI web application with user authentication and swing history tracking.**
 
-![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.10-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)
 ![MediaPipe](https://img.shields.io/badge/MediaPipe-0.10.33-green.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)
-![Vite](https://img.shields.io/badge/Vite-8.0+-6434c3.svg)
-![Tailwind](https://img.shields.io/badge/Tailwind-3.4+-38b0ac.svg)
+
+---
+
+## 📋 Table of Contents
+
+1. [Quick Start](#-quick-start) — 5-minute setup
+2. [System Requirements](#-system-requirements)
+3. [Installation](#-installation)
+4. [Running the Application](#-running-the-application)
+5. [Features](#-features)
+6. [Troubleshooting](#-troubleshooting)
+7. [Architecture](#-architecture)
+
+---
+
+## ⚡ Quick Start
+
+**For Windows users (fastest method):**
+
+```powershell
+# 1. Install prerequisites (if not already installed)
+#    - Python 3.10: https://www.python.org/downloads/
+#    - Node.js 18+: https://nodejs.org/
+#    - Git: https://git-scm.com/download/win
+
+# 2. Clone and setup
+git clone https://github.com/zainulabidin776/golf-dashboard.git
+cd golf-dashboard
+
+# 3. Create Python environment
+conda create -n golfpose python=3.10 -y
+conda activate golfpose
+
+# 4. Install dependencies
+pip install -r backend/requirements_api.txt
+pip install -r requirements.txt
+cd frontend && npm install && cd ..
+
+# 5. Run everything at once
+powershell -ExecutionPolicy Bypass -File start_app.ps1
+```
+
+Then open **http://localhost:5173** in your browser.
+
+---
+
+## 💻 System Requirements
+
+### Minimum Requirements
+- **OS:** Windows 10/11, macOS (Intel/Apple Silicon), or Linux (Ubuntu 20.04+)
+- **RAM:** 8 GB (16 GB recommended for video processing)
+- **Storage:** 5 GB free space (for models + database)
+- **GPU:** Optional (CPU-only is supported; GPU significantly faster)
+- **Python:** 3.10+
+- **Node.js:** 18.0+
+
+### Download Links
+| Tool | Link |
+|------|------|
+| **Miniconda** (Python) | https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html |
+| **Node.js** | https://nodejs.org/en/download |
+| **Git** | https://git-scm.com/download |
+
+---
+
+## 📦 Installation
+
+### 1️⃣ Prerequisites Check
+
+Before starting, verify you have the required tools installed:
+
+```bash
+# Check Python
+python --version
+# Expected: Python 3.10.x or higher
+
+# Check Node.js
+node --version
+# Expected: v18.x or higher
+
+# Check npm
+npm --version
+# Expected: 9.x or higher
+```
+
+If any are missing, install them using the links in the table above.
+
+---
+
+### 2️⃣ Clone the Repository
+
+```bash
+git clone https://github.com/zainulabidin776/golf-dashboard.git
+cd golf-dashboard
+```
+
+---
+
+### 3️⃣ Create Python Environment
+
+**Windows (using Conda/Miniconda):**
+```powershell
+conda create -n golfpose python=3.10 -y
+conda activate golfpose
+```
+
+**macOS/Linux (using Conda):**
+```bash
+conda create -n golfpose python=3.10 -y
+conda activate golfpose
+```
+
+**Alternative: Using Python venv (if you don't have Conda):**
+```bash
+# Windows
+python -m venv golfpose
+golfpose\Scripts\activate
+
+# macOS/Linux
+python3 -m venv golfpose
+source golfpose/bin/activate
+```
+
+---
+
+### 4️⃣ Install Python Dependencies
+
+Make sure your environment is activated, then run:
+
+```bash
+# Install backend API dependencies (FastAPI, database, auth)
+pip install -r backend/requirements_api.txt
+
+# Install ML & video processing dependencies
+pip install -r requirements.txt
+```
+
+**Verify Installation:**
+```bash
+python -c "import mediapipe; print('✓ MediaPipe OK')"
+python -c "import fastapi; print('✓ FastAPI OK')"
+python -c "import torch; print('✓ PyTorch OK')"
+python -c "import sqlalchemy; print('✓ SQLAlchemy OK')"
+```
+
+All checks should show `✓ OK` messages.
+
+---
+
+### 5️⃣ Install Frontend Dependencies
+
+```bash
+cd frontend
+npm install
+cd ..
+```
+
+---
+
+## 🚀 Running the Application
+
+### Option 1: Automated Startup (Windows - Recommended)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File start_app.ps1
+```
+
+This will:
+- ✅ Start the FastAPI backend on `http://localhost:8000`
+- ✅ Start the React frontend on `http://localhost:5173`
+- ✅ Show you the URLs to access
+
+**Expected Output:**
+```
+====================================
+  GolfCoach AI - Starting Services  
+====================================
+  Python : C:\Users\...\miniconda3\envs\golfpose\python.exe
+
+✓ Backend starting on http://localhost:8000
+✓ Frontend starting on http://localhost:5173
+✓ Open your browser: http://localhost:5173
+```
+
+Then open your browser to **http://localhost:5173** and start using the app!
+
+---
+
+### Option 2: Manual Startup (All Platforms)
+
+If the automated script doesn't work, start services manually:
+
+**Terminal 1 — Start Backend:**
+```bash
+# Make sure your conda environment is activated
+conda activate golfpose  # or: source golfpose/bin/activate
+
+# Start the FastAPI server
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+You should see:
+```
+INFO:     Uvicorn running on http://0.0.0.0:8000
+INFO:     Application startup complete
+```
+
+**Terminal 2 — Start Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+You should see:
+```
+  VITE v... ready in ... ms
+
+  ➜  Local:   http://localhost:5173/
+```
+
+Then open **http://localhost:5173** in your browser.
 
 ---
 
 ## 🎯 Features
 
-### Core Analysis
-- **6-Phase Swing Detection** — ADDRESS → BACKSWING → TOP → DOWNSWING → IMPACT → FOLLOW-THROUGH
-- **ML Fault Detection** — 92% accuracy PyTorch classifier with per-phase severity ratings (🔴🟠🟡)
-- **Performance Prediction** — Neural network estimating ball speed, distance & carry (R²=0.67)
-- **Ball Tracking** — YOLOv8 ball detection + trajectory + distance estimation
-- **Annotated Video** — Pose skeleton overlay, phase labels, fault highlights, slow-motion playback
-- **PDF Reports** — Downloadable multi-page analysis with per-phase fault tables
+### Core Analysis Engine
+- **6-Phase Swing Detection** — Automatically identifies ADDRESS → BACKSWING → TOP → DOWNSWING → IMPACT → FOLLOW-THROUGH
+- **ML Fault Detection** — 92% accuracy fault classifier with severity ratings (Critical/Major/Minor)
+- **Performance Prediction** — Estimates ball speed, carry distance, and trajectory
+- **Ball Tracking** — YOLOv8 detects and tracks the golf ball
+- **Annotated Video** — Original video with pose skeleton overlay, phase labels, and fault highlights
+- **PDF Reports** — Generate professional analysis reports
 
-### User Features
-- **User Authentication** — Email/password registration & login with JWT tokens (7-day expiry)
-- **Profile Management** — User dashboard with handicap, display name, avatar
-- **Swing History** — Track all analyzed swings with scores, faults, and quality ratings
-- **Dashboard Analytics** — Charts showing score trends, fault frequency, and performance metrics
-- **Live Posture Check** — Real-time webcam feedback for ADDRESS phase alignment
+### User Management
+- 🔐 User Registration & Login
+- 📊 Swing History Tracking
+- 📈 Performance Dashboard with Charts
+- ⚙️ Profile Management
+- 🎥 Live Posture Feedback (Real-time webcam analysis)
 
-### Web UI
-- **Modern Dashboard** — React 19 + Vite with Framer Motion animations
-- **Responsive Design** — Tailwind CSS + mobile-friendly layouts
-- **Real-Time Charts** — Recharts for score trends and fault frequency visualization
-- **Protected Routes** — Automatic authentication checks and redirects
-- **Offline Support** — Auth tokens and user data persisted in localStorage
+### Web Interface
+- Modern, responsive React dashboard
+- Real-time video upload and analysis
+- Animated results with detailed breakdowns
+- Charts showing progress and trends
+- Mobile-friendly design
+
+---
+
+## 🌐 First Time Usage
+
+### 1. Register an Account
+- Click **"Sign Up"** on the landing page
+- Enter your email and password
+- Click **"Register"**
+
+### 2. Upload a Golf Video
+- Go to **"Analyze"** page
+- Click **"Choose Video"** and select your golf swing video
+- Click **"Analyze"**
+- Wait for analysis (typically 30-60 seconds depending on video length)
+
+### 3. View Results
+- See the analysis breakdown by phase
+- Check detected faults and severity levels
+- View ball trajectory and distance estimates
+- Watch annotated video playback
+- Download PDF report
+
+### 4. Track Progress
+- Go to **"Dashboard"** to see all your analyzed swings
+- View trends and improvement over time
+- Compare fault frequency across sessions
+
+---
+
+## ❌ Troubleshooting
+
+### Problem: "ModuleNotFoundError: No module named 'fastapi'"
+
+**Solution:**
+```bash
+conda activate golfpose
+pip install -r backend/requirements_api.txt -r requirements.txt
+```
+
+---
+
+### Problem: "Cannot find Python" when running start_app.ps1
+
+**Solution:**
+1. Edit `start_app.ps1` in a text editor
+2. Find line with `$CONDA_BASE = ...`
+3. Change it to your Conda installation path (e.g., `C:\Users\YourName\anaconda3`)
+4. Or use manual startup (Option 2 above)
+
+---
+
+### Problem: "npm: command not found"
+
+**Solution:** Install Node.js from https://nodejs.org/ and restart your terminal
+
+---
+
+### Problem: Frontend can't connect to backend
+
+**Possible causes:**
+1. Backend is not running (check Terminal 1 for "Uvicorn running" message)
+2. Backend is on wrong port (should be 8000)
+3. Firewall blocking port 8000
+
+**Solution:**
+- Check both services are running
+- If using a different port, update frontend API config in `frontend/src/api/base.ts`
+
+---
+
+### Problem: Analysis fails with "CUDA out of memory"
+
+**Solution:** Your GPU doesn't have enough memory. The system will automatically fall back to CPU. This is slower but will work.
+
+---
+
+### Problem: "Database is locked" error
+
+**Solution:**
+```bash
+# Stop all running instances of the backend
+# Wait 5 seconds
+# Delete golf.db (it will be recreated)
+rm golf.db
+# Restart the backend
+```
+
+---
+
+### Problem: Very slow video processing
+
+**Possible causes:**
+- CPU-based processing (expected, slower than GPU)
+- Antivirus scanning files
+- Not enough RAM
+
+**Solution:**
+- Close other applications
+- Consider adding a GPU if processing large videos frequently
 
 ---
 
@@ -43,61 +362,106 @@
 ```
 golf-dashboard/
 ├── backend/                        # FastAPI REST API
-│   ├── main.py                     # App entry point + DB initialization
-│   ├── database.py                 # SQLAlchemy setup + session factory
-│   ├── auth.py                     # Password hashing + JWT token management
-│   ├── models.py                   # SQLAlchemy ORM models (User, SwingSession)
-│   ├── schemas.py                  # Pydantic request/response schemas
-│   ├── job_store.py                # In-memory job state management
-│   ├── requirements_api.txt        # API dependencies
+│   ├── main.py                     # App entry point + database init
+│   ├── auth.py                     # Authentication & JWT tokens
+│   ├── database.py                 # SQLAlchemy setup
+│   ├── models.py                   # Database models (User, SwingSession)
+│   ├── schemas.py                  # API request/response schemas
 │   └── routers/
-│       ├── auth.py                 # POST /api/auth/{register,login}, GET/PATCH /api/auth/me
-│       ├── analysis.py             # POST /api/analyze, GET /api/status, /api/report
-│       ├── sessions.py             # GET /api/sessions/{list,dashboard}, DELETE /api/sessions/{id}
-│       └── live.py                 # GET /api/live/frame (webcam)
+│       ├── auth.py                 # /api/auth/* endpoints
+│       ├── analysis.py             # /api/analyze endpoint
+│       └── sessions.py             # /api/sessions endpoint
+│
 ├── frontend/                       # React + Vite + TailwindCSS
-│   ├── package.json                # NPM dependencies
-│   ├── vite.config.ts              # Vite bundler config
-│   ├── tsconfig.json               # TypeScript config
-│   └── src/
-│       ├── App.tsx                 # Main router + protected routes
-│       ├── main.tsx                # Vite entry point
-│       ├── index.css               # Global styles
-│       ├── api/
-│       │   ├── client.ts           # Axios client with auth interceptor
-│       │   ├── auth.ts             # Auth API endpoints
-│       │   └── sessions.ts         # Sessions API endpoints
-│       ├── store/
-│       │   └── authStore.ts        # Zustand auth state (persisted to localStorage)
-│       ├── pages/
-│       │   ├── LoginPage.tsx       # User login form
-│       │   ├── RegisterPage.tsx    # User registration form
-│       │   ├── DashboardPage.tsx   # Swing history + charts
-│       │   ├── ProfilePage.tsx     # Edit user profile
-│       │   ├── AnalyzePage.tsx     # Video upload + analysis
-│       │   └── LivePage.tsx        # Real-time webcam feedback
-│       ├── components/
-│       │   ├── auth/
-│       │   │   └── ProtectedRoute.tsx  # Route guard for authenticated pages
-│       │   ├── layout/
-│       │   │   └── Navbar.tsx      # Auth-aware navigation bar
-│       │   └── ...
-│       └── hooks/                  # Custom React hooks
-├── models/                         # Pre-trained ML models
-│   ├── fault_detector.pt           # PyTorch fault classifier (~50MB)
-│   ├── performance_predictor.pt    # Distance/speed predictor model
-│   ├── ball_detector.pt            # YOLOv8 ball detector
-│   ├── pose_landmarker_full.task   # MediaPipe pose landmarks model
-│   └── swing_quality_classifier.pt # Swing quality classifier
-├── utils/                          # Core ML & video processing
-│   ├── video_processor.py          # Video I/O + annotated video generation
-│   ├── pose_detector.py            # MediaPipe pose extraction
-│   ├── phase_detector.py           # Swing phase classification (6 phases)
-│   ├── ball_tracker.py             # YOLO ball tracking + filtering
-│   ├── distance_estimator.py       # Ball distance estimation
-│   ├── swing_phase_analyzer.py     # Phase-specific fault analysis
-│   ├── feature_extractor.py        # ML feature extraction
-│   └── visualizer.py               # Video annotation utilities
+│   ├── src/
+│   │   ├── pages/                  # Page components (Login, Dashboard, etc.)
+│   │   ├── components/             # Reusable UI components
+│   │   ├── store/                  # Zustand state management
+│   │   └── api/                    # API client functions
+│   └── package.json                # NPM dependencies
+│
+├── utils/                          # ML & video processing
+│   ├── video_processor.py          # Video I/O
+│   ├── pose_detector.py            # Pose estimation
+│   ├── phase_detector.py           # Swing phase detection
+│   ├── ball_tracker.py             # Ball detection & tracking
+│   └── feature_extractor.py        # ML feature engineering
+│
+├── models/                         # Pre-trained AI models
+│   ├── fault_detector.pt           # Fault detection model
+│   ├── performance_predictor.pt    # Distance prediction model
+│   ├── ball_detector.pt            # Ball detection model
+│   └── pose_landmarker_full.task   # MediaPipe pose model
+│
+├── requirements.txt                # Python ML dependencies
+├── backend/requirements_api.txt    # Python API dependencies
+└── start_app.ps1                   # One-click startup script
+```
+
+---
+
+## 📞 Support & FAQ
+
+**Q: Can I use this on a Mac?**
+A: Yes! Follow the same installation steps. Use `bash` instead of PowerShell for the startup script. Or use Option 2 (Manual Startup) which works on all platforms.
+
+**Q: What video formats are supported?**
+A: MP4, MOV, AVI, and other OpenCV-supported formats. Recommended: MP4 with resolution 1080p or better, 30+ FPS.
+
+**Q: How long does analysis take?**
+A: Typically 30-60 seconds per video, depending on:
+- Video length and resolution
+- Processor speed (GPU is 10-20x faster)
+- System load
+
+**Q: Can I run this without internet?**
+A: Yes! Once installed, the app runs completely offline (except registration/updates).
+
+**Q: How much disk space does this need?**
+A: ~2-3 GB for models, ~500MB per stored analysis. Allocate at least 5GB total.
+
+---
+
+## 🔧 Advanced Configuration
+
+### Change API Port
+Edit `backend/main.py` or run with custom port:
+```bash
+python -m uvicorn backend.main:app --port 8001
+```
+
+### Change Frontend Port
+Edit `frontend/vite.config.ts`:
+```typescript
+export default {
+  server: {
+    port: 3000  // change from 5173
+  }
+}
+```
+
+### Enable GPU Acceleration
+If you have NVIDIA GPU:
+```bash
+# Install CUDA-enabled PyTorch
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+```
+
+---
+
+## 📄 License
+
+See LICENSE file for details.
+
+---
+
+## 👨‍💻 Contributing
+
+Found a bug? Want to add a feature? Submit an issue or pull request on GitHub!
+
+---
+
+**Happy analyzing! ⛳🎯**
 ├── analyze_video.py                # Core MLSwingAnalyzer class
 ├── pose_detector.py                # Standalone pose detection script
 ├── phase_detector.py               # Standalone phase detection script
