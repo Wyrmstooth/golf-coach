@@ -210,7 +210,7 @@ export default function BallTrajectoryChart({ trajectory, phaseRanges, fps = 30,
             </div>
           )}
         </div>
-      </motion.div>
+    </motion.div>
     );
   }
 
@@ -264,46 +264,48 @@ export default function BallTrajectoryChart({ trajectory, phaseRanges, fps = 30,
     : "N/A";
 
   return (
-    <motion.div
+    <motion.section
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass rounded-2xl p-6 space-y-4"
+      className="glass rounded-2xl p-6 space-y-5"
     >
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <Activity size={16} className="text-golf-green" />
-          <h3 className="text-sm font-semibold text-white/60 uppercase tracking-widest">
+          <h3 className="text-xs font-semibold text-white/45 uppercase tracking-widest">
             Ball Trajectory
           </h3>
         </div>
         <div className="flex items-center gap-4 flex-wrap">
           {/* Tracking quality badge */}
-          <div className="flex items-center gap-1.5 glass px-2.5 py-1 rounded-full">
-            <div className={`w-2 h-2 rounded-full ${
-              qualityLabel === "Good" ? "bg-golf-green" : qualityLabel === "Fair" ? "bg-amber-400" : "bg-red-400"
-            }`} />
-            <span className={`text-xs font-semibold ${qualityColor}`}>
-              Tracking: {qualityLabel}
-            </span>
-          </div>
+          {ballTracking?.enabled && (
+            <div className="flex items-center gap-1.5 glass px-2.5 py-1 rounded-full">
+              <div className={`w-2 h-2 rounded-full ${
+                qualityLabel === "Good" ? "bg-golf-green" : qualityLabel === "Fair" ? "bg-amber-400" : "bg-red-400"
+              }`} />
+              <span className={`text-xs font-semibold ${qualityColor}`}>
+                Tracking: {qualityLabel} {typeof detectionRate === "number" && `(${(detectionRate * 100).toFixed(0)}%)`}
+              </span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-blue-400 rounded" />
-            <span className="text-xs text-white/40">Horizontal</span>
+            <span className="text-[10px] text-white/35">Horizontal</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-orange-400 rounded" />
-            <span className="text-xs text-white/40">Vertical</span>
+            <span className="text-[10px] text-white/35">Vertical</span>
           </div>
           {projection.length > 0 && (
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-0.5 border-t border-dashed border-emerald-400" />
-              <span className="text-xs text-white/40">Projected</span>
+              <span className="text-[10px] text-white/35">Projected</span>
             </div>
           )}
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={260}>
+      <ResponsiveContainer width="100%" height={320}>
         <ComposedChart data={combinedData} margin={{ top: 8, right: 24, bottom: 8, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
           <XAxis
@@ -402,6 +404,6 @@ export default function BallTrajectoryChart({ trajectory, phaseRanges, fps = 30,
           </span>
         )}
       </div>
-    </motion.div>
+    </motion.section>
   );
 }

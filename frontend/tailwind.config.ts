@@ -4,16 +4,19 @@ const config: Config = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      screens: {
+        xs: "420px",
+      },
       colors: {
         golf: {
-          green:  "#16a34a",
-          dark:   "#052e16",
-          gold:   "#ca8a04",
-          light:  "#bbf7d0",
-          navy:   "#0f172a",
-          slate:  "#1e293b",
-          turf:   "#0d4a25",
-          cream:  "#f8f8f0",
+          green:  "#10b981",
+          dark:   "#022c22",
+          gold:   "#f59e0b",
+          light:  "#a7f3d0",
+          navy:   "#090d14",
+          slate:  "#131c31",
+          turf:   "#047857",
+          cream:  "#fafaf5",
         },
       },
       fontFamily: {
@@ -53,9 +56,10 @@ const config: Config = {
         "300%": "300%",
       },
       boxShadow: {
-        glow:        "0 0 20px rgba(22, 163, 74, 0.4)",
-        "glow-gold": "0 0 20px rgba(202, 138, 4, 0.4)",
-        "glow-lg":   "0 0 40px rgba(22, 163, 74, 0.5)",
+        glow:        "0 0 24px rgba(16, 185, 129, 0.35)",
+        "glow-gold": "0 0 24px rgba(245, 158, 11, 0.35)",
+        "glow-lg":   "0 0 48px rgba(16, 185, 129, 0.45)",
+        card:        "0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.24)",
       },
     },
   },

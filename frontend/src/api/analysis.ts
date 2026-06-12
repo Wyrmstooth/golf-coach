@@ -76,10 +76,21 @@ export interface AnalysisReport {
   };
 }
 
-export async function uploadVideo(file: File): Promise<{ job_id: string }> {
+export async function uploadVideo(
+  file: File,
+  options?: { skipBallTracking?: boolean; skipPerformance?: boolean; skipVideoRender?: boolean }
+): Promise<{ job_id: string }> {
   const form = new FormData();
   form.append("file", file);
-  const { data } = await client.post<{ job_id: string }>("/analyze", form, {
+
+  const params = new URLSearchParams();
+  if (options?.skipBallTracking) params.set("skip_ball_tracking", "true");
+  if (options?.skipPerformance) params.set("skip_performance_prediction", "true");
+  if (options?.skipVideoRender) params.set("skip_video_render", "true");
+
+  const url = params.toString() ? `/analyze?${params.toString()}` : "/analyze";
+
+  const { data } = await client.post<{ job_id: string }>(url, form, {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return data;
@@ -96,7 +107,8 @@ export async function getReport(jobId: string): Promise<AnalysisReport> {
 }
 
 export function getFileUrl(jobId: string, filename: string): string {
-  return `${getApiBase()}/files/${jobId}/${filename}`;
+  const base = getApiBase();
+  return `${base}/files/${jobId}/${filename}`;
 }
 
 export interface JobSummary {

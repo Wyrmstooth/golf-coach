@@ -48,6 +48,8 @@ class UserOut(BaseModel):
     display_name: str
     handicap: Optional[float]
     avatar_initials: Optional[str]
+    is_admin: bool = False
+    is_active: bool = True
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -86,3 +88,28 @@ class DashboardStats(BaseModel):
     recent_sessions: list[SwingSessionOut]
     score_trend: list[dict]           # [{date, score}] for chart
     fault_frequency: list[dict]       # [{fault, count}] for chart
+
+
+# ── Admin ─────────────────────────────────────────────────────────────────────
+
+class AdminUserUpdate(BaseModel):
+    display_name: Optional[str] = None
+    handicap: Optional[float] = None
+    is_admin: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+class AdminStats(BaseModel):
+    total_users: int
+    active_users: int
+    admin_users: int
+    total_sessions: int
+    avg_score_all: Optional[float]
+    active_jobs: int
+    total_jobs: int
+
+
+class AdminSessionOut(SwingSessionOut):
+    user_id: int
+    user_name: str
+    user_email: str

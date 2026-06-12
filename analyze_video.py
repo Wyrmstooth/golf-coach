@@ -39,7 +39,7 @@ from utils.video_processor import VideoProcessor
 from utils.visualizer import SwingVisualizer
 from models.fault_detector import FaultDetector
 from models.performance_predictor import PerformancePredictor
-from models.ball_detector import BallDetector
+from models.ball_detector import BallDetector, create_ball_detector
 from pose_detector import PoseDetector
 from training.caddieset_feature_extractor import CaddieSetFeatureExtractor
 from utils.ball_tracker import BallTracker, BallTrajectoryPoint
@@ -80,12 +80,11 @@ class MLSwingAnalyzer:
 
         # Module 3 components (Ball tracking & trajectory)
         module3_cfg = (self.config or {}).get("module3", {}) or {}
-        ball_det_cfg = module3_cfg.get("ball_detection", {}) or {}
         ball_track_cfg = module3_cfg.get("ball_tracking", {}) or {}
         dist_cfg = module3_cfg.get("distance_estimation", {}) or {}
 
         self.module3_enabled: bool = bool(module3_cfg.get("enabled", False))
-        self.ball_detector: Optional[BallDetector] = None
+        self.ball_detector = None  # type: ignore[assignment]
         self.ball_tracker: Optional[BallTracker] = None
         self.distance_estimator: Optional[DistanceEstimator] = None
 
@@ -122,23 +121,26 @@ class MLSwingAnalyzer:
         # Module 3: Ball detector, tracker, and distance estimator
         module3_cfg = (self.config or {}).get("module3", {}) or {}
         if module3_cfg.get("enabled", False):
-            ball_det_cfg = module3_cfg.get("ball_detection", {}) or {}
             ball_track_cfg = module3_cfg.get("ball_tracking", {}) or {}
             dist_cfg = module3_cfg.get("distance_estimation", {}) or {}
 
             try:
-                self.ball_detector = BallDetector(
-                    model_path=ball_det_cfg.get("model_path", "models/ball_detector.pt"),
-                    conf_threshold=ball_det_cfg.get("conf_threshold", 0.4),
-                    iou_threshold=ball_det_cfg.get("iou_threshold", 0.45),
-                    device=ball_det_cfg.get("device", "auto"),
-                )
+                self.ball_detector = create_ball_detector(self.config)
                 self.ball_tracker = BallTracker(
                     window_before_impact=ball_track_cfg.get("window_before_impact", 5),
                     window_after_impact=ball_track_cfg.get("window_after_impact", 70),
-                    min_confidence=ball_track_cfg.get("min_confidence", 0.4),
+                    min_confidence=ball_track_cfg.get("min_confidence", 0.35),
                     max_interpolation_gap=ball_track_cfg.get("max_interpolation_gap", 5),
                 )
+                # Apply production safety limits from config (prevents CPU hangs)
+                if "max_total_frames" in ball_track_cfg:
+                    self.ball_tracker.max_total_frames = int(ball_track_cfg["max_total_frames"])
+                if "frame_timeout_sec" in ball_track_cfg:
+                    self.ball_tracker.frame_timeout_sec = float(ball_track_cfg["frame_timeout_sec"])
+                if "total_time_budget_sec" in ball_track_cfg:
+                    self.ball_tracker.total_time_budget_sec = float(ball_track_cfg["total_time_budget_sec"])
+                if "max_consecutive_misses" in ball_track_cfg:
+                    self.ball_tracker.max_consecutive_misses = int(ball_track_cfg["max_consecutive_misses"])
                 self.distance_estimator = DistanceEstimator(
                     pixel_to_meter=dist_cfg.get("pixel_to_meter", 0.02),
                     gravity=dist_cfg.get("gravity", 9.81),
@@ -160,6 +162,8 @@ class MLSwingAnalyzer:
         output_dir: str = "output",
         verbose: bool = True,
         skip_video_render: bool = False,
+        skip_ball_tracking: bool = False,
+        skip_performance_prediction: bool = False,
         progress_callback=None,
     ) -> dict:
         """
@@ -170,6 +174,8 @@ class MLSwingAnalyzer:
             output_dir: Output directory
             verbose: Show progress
             skip_video_render: Skip creating annotated video (much faster)
+            skip_ball_tracking: Skip Module 3 ball tracking
+            skip_performance_prediction: Skip ML performance prediction
             progress_callback: Optional callable(percent: int) called at each step
 
         Returns:
@@ -272,36 +278,39 @@ class MLSwingAnalyzer:
             # Predict using CaddieSet-compatible features
             score, messages, details = self.fault_detector.predict(caddieset_features)
             
+            # Convert fault score (0-100, higher=more faults) to swing score (0-100, higher=better)
+            swing_score = max(0, min(100, 100 - score))
+            
             fault_results = {
-                'overall_score': score,
+                'overall_score': round(swing_score, 1),
                 'details': details,
                 'messages': messages
             }
 
-            # Interpret the score (rescaled: good swings ~0-25, bad swings ~50-100)
-            if score >= 55:
-                swing_quality = "Poor"
-            elif score >= 38:
-                swing_quality = "Needs Work"
-            elif score >= 25:
-                swing_quality = "Good"
-            else:
+            # Interpret the score (higher = better swing)
+            if swing_score >= 85:
                 swing_quality = "Excellent"
+            elif swing_score >= 70:
+                swing_quality = "Good"
+            elif swing_score >= 50:
+                swing_quality = "Fair"
+            else:
+                swing_quality = "Needs Work"
             fault_results['swing_quality'] = swing_quality
 
             if verbose:
                 print(f"\n⚠️  Fault Analysis:")
-                print(f"   Overall Fault Score: {fault_results['overall_score']:.1f}/100")
-                print(f"   (Higher score = more faults detected)")
+                print(f"   Swing Quality Score: {fault_results['overall_score']:.1f}/100")
+                print(f"   (Higher score = better swing)")
                 
-                if score >= 55:
-                    print("   ❌ Significant technique issues detected!")
-                elif score >= 38:
-                    print("   ⚠️ Several technique issues found - needs improvement")
-                elif score >= 25:
-                    print("   ✓ Minor form variations - acceptable technique")
-                else:
+                if swing_score >= 85:
                     print("   ✅ Professional-level technique!")
+                elif swing_score >= 70:
+                    print("   ✓ Good technique with minor improvements possible")
+                elif swing_score >= 50:
+                    print("   ⚠️ Several technique issues found - needs improvement")
+                else:
+                    print("   ❌ Significant technique issues detected!")
                 
                 # Show fault summary by severity
                 if details.get('summary', {}).get('total_faults', 0) > 0:
@@ -333,54 +342,55 @@ class MLSwingAnalyzer:
                 print("   ⚠️  Fault detector not loaded - skipping")
 
         # =====================================================================
-        # STEP 5: ML Performance Prediction (Module 2)
+        # STEP 5: ML Performance Prediction (Module 2) — skippable
         # =====================================================================
         _progress(72)
-        if verbose:
-            print("\n[5/6] Predicting shot performance...")
-
         performance_results = None
-        if self.performance_predictor:
-            # Reuse CaddieSet features from fault detection
-            if not fault_results:
-                # Extract if fault detection was skipped
-                caddieset_features = self.caddieset_extractor.extract_from_landmarks(
-                    landmarks_sequence, phase_ranges, frame_height, frame_width
-                )
-            
-            # Predict performance using CaddieSet-compatible features
-            performance_results = self.performance_predictor.predict(caddieset_features)
 
+        if not skip_performance_prediction:
             if verbose:
-                print(f"\n🎯 Estimated Performance:")
-                print(f"   Ball Speed:  {performance_results['BallSpeed']:.1f} mph")
-                print(f"   Distance:    {performance_results['Distance']:.1f} yards")
-                print(f"   Carry:       {performance_results['Carry']:.1f} yards")
-                print(f"   Confidence:  {performance_results['confidence']:.1f}%")
-        else:
-            if verbose:
-                print("   ⚠️  Performance predictor not loaded - using heuristics")
-            
-            # Use heuristics even without ML model
-            phase_aggregated = self._aggregate_features_by_phase(
-                features_sequence, phase_ranges
-            )
-            performance_results = self._estimate_performance(phase_aggregated)
-            
-            if verbose:
-                print(f"\n🎯 Estimated Performance (Heuristic):")
-                print(f"   Ball Speed:  {performance_results['BallSpeed']:.1f} mph")
-                print(f"   Distance:    {performance_results['Distance']:.1f} yards")
-                print(f"   Carry:       {performance_results['Carry']:.1f} yards")
+                print("\n[5/6] Predicting shot performance...")
+
+            if self.performance_predictor:
+                # Reuse CaddieSet features from fault detection
+                if not fault_results:
+                    caddieset_features = self.caddieset_extractor.extract_from_landmarks(
+                        landmarks_sequence, phase_ranges, frame_height, frame_width
+                    )
+
+                performance_results = self.performance_predictor.predict(caddieset_features)
+
+                if verbose:
+                    print(f"\n🎯 Estimated Performance:")
+                    print(f"   Ball Speed:  {performance_results['BallSpeed']:.1f} mph")
+                    print(f"   Distance:    {performance_results['Distance']:.1f} yards")
+                    print(f"   Carry:       {performance_results['Carry']:.1f} yards")
+                    print(f"   Confidence:  {performance_results['confidence']:.1f}%")
+            else:
+                if verbose:
+                    print("   ⚠️  Performance predictor not loaded - using heuristics")
+
+                phase_aggregated = self._aggregate_features_by_phase(
+                    features_sequence, phase_ranges
+                )
+                performance_results = self._estimate_performance(phase_aggregated)
+
+                if verbose:
+                    print(f"\n🎯 Estimated Performance (Heuristic):")
+                    print(f"   Ball Speed:  {performance_results['BallSpeed']:.1f} mph")
+                    print(f"   Distance:    {performance_results['Distance']:.1f} yards")
+                    print(f"   Carry:       {performance_results['Carry']:.1f} yards")
+        elif verbose:
+            print("\n[5/6] Skipping performance prediction (user opted out)")
 
         # =====================================================================
-        # STEP 6: Module 3 - Ball Tracking & Distance Estimation (optional)
+        # STEP 6: Module 3 - Ball Tracking & Distance Estimation (skippable)
         # =====================================================================
         ball_trajectory: Optional[List[BallTrajectoryPoint]] = None
         ball_quality: Optional[Dict[str, float]] = None
         ball_distance: Optional[Dict[str, float]] = None
 
-        if self.module3_enabled and self.ball_detector and self.ball_tracker:
+        if not skip_ball_tracking and self.module3_enabled and self.ball_detector and self.ball_tracker:
             _progress(80)
             if verbose:
                 print("\n[6/6] Tracking ball trajectory (Module 3)...")
@@ -616,14 +626,16 @@ class MLSwingAnalyzer:
                         max_severity = sev
                         break
 
-                # Simple phase score for visualization only (0–100)
+                # Phase score: 100 = perfect (no faults), lower = more faults.
+                # Consistent with overall_score where higher is always better.
                 weighted_sum = sum(
                     counts[sev] * severity_weights[sev] for sev in counts
                 )
                 # Assume up to ~8 weighted units per phase → scale into 0–100
-                phase_score = 0.0
+                fault_penalty = 0.0
                 if weighted_sum > 0:
-                    phase_score = float(min(100.0, (weighted_sum / 8.0) * 100.0))
+                    fault_penalty = float(min(100.0, (weighted_sum / 8.0) * 100.0))
+                phase_score = 100.0 - fault_penalty
 
                 top_fault_titles = [
                     f.get("title", "") for f in faults if f.get("title")

@@ -46,7 +46,7 @@ def dashboard_stats(
 
     scores = [s.overall_score for s in sessions if s.overall_score is not None]
     avg_score  = round(sum(scores) / len(scores), 1) if scores else None
-    best_score = round(min(scores), 1) if scores else None
+    best_score = round(max(scores), 1) if scores else None
 
     # Score trend for chart — last 20 sessions with a score
     trend_sessions = [s for s in sessions if s.overall_score is not None][-20:]

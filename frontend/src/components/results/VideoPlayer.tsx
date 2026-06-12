@@ -1,6 +1,6 @@
-import { forwardRef, useState, useRef } from "react";
+import { forwardRef, useState, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Play, Pause, Download, Film } from "lucide-react";
+import { Play, Pause, Download, Loader2 } from "lucide-react";
 
 interface Props {
   videoUrl: string;
@@ -24,8 +24,34 @@ const VideoPlayer = forwardRef<HTMLVideoElement, Props>(
     const [playing, setPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+    const [videoError, setVideoError] = useState(false);
+    const [downloading, setDownloading] = useState(false);
     const internalRef = useRef<HTMLVideoElement | null>(null);
     const videoRef = (ref as React.RefObject<HTMLVideoElement | null>) ?? internalRef;
+
+    const handleVideoError = () => {
+      setVideoError(true);
+    };
+
+    const handleDownload = useCallback(async () => {
+      setDownloading(true);
+      try {
+        const res = await fetch(videoUrl);
+        if (!res.ok) throw new Error("Download failed");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename ?? "annotated_swing.mp4";
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch {
+        // fallback: open in new tab
+        window.open(videoUrl, "_blank");
+      } finally {
+        setDownloading(false);
+      }
+    }, [videoUrl, filename]);
 
     const handlePlayPause = () => {
       if (!videoRef.current) return;
@@ -69,18 +95,46 @@ const VideoPlayer = forwardRef<HTMLVideoElement, Props>(
       >
         {/* Video */}
         <div className="relative bg-black">
-          <video
-            ref={videoRef}
-            src={videoUrl}
-            className="w-full max-h-[500px] object-contain"
-            onTimeUpdate={handleTimeUpdate}
-            onDurationChange={handleDurationChange}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onEnded={() => setPlaying(false)}
-          />
+          {videoError ? (
+            <div className="w-full aspect-video flex items-center justify-center bg-black/80">
+              <div className="text-center space-y-3 px-6">
+                <div className="w-12 h-12 mx-auto rounded-full bg-golf-green/10 ring-1 ring-golf-green/20 flex items-center justify-center">
+                  <Download size={22} className="text-golf-green" />
+                </div>
+                <div>
+                  <p className="text-white/60 font-semibold text-sm">Download to Play</p>
+                  <p className="text-white/30 text-xs mt-1 max-w-xs">
+                    This video uses a codec not supported by your browser. Download it to watch the annotated swing analysis.
+                  </p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-golf-green/15 border border-golf-green/30 text-golf-green rounded-xl font-semibold text-sm hover:bg-golf-green/25 transition-all"
+                >
+                  {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  {downloading ? "Downloading..." : "Download Video"}
+                </motion.button>
+              </div>
+            </div>
+          ) : (
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              className="w-full max-h-[500px] object-contain"
+              onTimeUpdate={handleTimeUpdate}
+              onDurationChange={handleDurationChange}
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onEnded={() => setPlaying(false)}
+              onError={handleVideoError}
+              crossOrigin="anonymous"
+            />
+          )}
           {/* Center play overlay */}
-          {!playing && (
+          {!playing && !videoError && (
             <motion.button
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -141,14 +195,18 @@ const VideoPlayer = forwardRef<HTMLVideoElement, Props>(
               </span>
             </div>
 
-            <a
-              href={videoUrl}
-              download={filename ?? "annotated_swing.mp4"}
-              className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white transition-colors px-3 py-1.5 glass rounded-lg"
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white transition-colors px-3 py-1.5 glass rounded-lg disabled:opacity-50"
             >
-              <Download size={12} />
-              Download
-            </a>
+              {downloading ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Download size={12} />
+              )}
+              {downloading ? "Saving..." : "Download"}
+            </button>
           </div>
 
           {/* Phase legend */}

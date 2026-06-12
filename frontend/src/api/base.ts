@@ -7,9 +7,8 @@ export function getApiBase(): string {
     return "http://localhost:8000/api";
   }
 
-  const protocol = window.location.protocol;
-  const host = window.location.host.replace("frontend", "backend");
-  return `${protocol}//${host}/api`;
+  // Production fallback: point to Railway backend
+  return "https://golf-dashboard.up.railway.app/api";
 }
 
 export function getWsBase(): string {

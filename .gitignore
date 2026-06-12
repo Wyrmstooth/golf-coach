@@ -62,11 +62,13 @@ tmp/
 
 golf.db
 
-# Large model files (use git-lfs if needed)
+# Large model files — downloaded at runtime via MODEL_URL env var
 models/*.task
-models/*.pt
 *.task
-*.pt
+models/ball_detector.pt
+models/fault_detector.pt
+models/performance_predictor.pt
+models/golf_ball_frcnn.pt
 
 # Environment & config
 .env
@@ -104,3 +106,5 @@ frontend/build/
 
 # Jupyter
 .ipynb_checkpoints/
+
+Golf Ball/

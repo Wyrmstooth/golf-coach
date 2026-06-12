@@ -1,13 +1,15 @@
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Video, Square, Loader2, RotateCcw } from "lucide-react";
+import { Video, Square, Loader2, RotateCcw, Film } from "lucide-react";
 import axios from "axios";
 import type { AnalysisReport } from "../../api/analysis";
+import { getFileUrl } from "../../api/analysis";
 import { getApiBase } from "../../api/base";
 import SwingScoreRing from "../results/SwingScoreRing";
 import FaultCards from "../results/FaultCards";
 import PerformanceMetrics from "../results/PerformanceMetrics";
 import ReportDownload from "../results/ReportDownload";
+import VideoPlayer from "../results/VideoPlayer";
 
 type RecorderState = "idle" | "countdown" | "recording" | "processing" | "done" | "error";
 
@@ -16,8 +18,11 @@ interface Props {
 }
 
 export default function LiveSwingRecorder({ stream }: Props) {
+  const RECORD_DURATION = 10_000;
+  const COUNTDOWN_FROM = 5;
+
   const [state, setState] = useState<RecorderState>("idle");
-  const [countdown, setCountdown] = useState(3);
+  const [countdown, setCountdown] = useState(COUNTDOWN_FROM);
   const [progress, setProgress] = useState(0);
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +32,7 @@ export default function LiveSwingRecorder({ stream }: Props) {
   const startRecording = () => {
     if (!stream) return;
     setState("countdown");
-    let cnt = 3;
+    let cnt = COUNTDOWN_FROM;
     setCountdown(cnt);
 
     const tick = setInterval(() => {
@@ -44,9 +49,14 @@ export default function LiveSwingRecorder({ stream }: Props) {
     if (!stream) return;
     chunksRef.current = [];
 
-    const mimeType = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find(
-      (m) => MediaRecorder.isTypeSupported(m)
-    ) ?? "";
+    // Prefer H.264/MP4 (OpenCV-friendly), then WebM/H264, then VP9, then plain WebM
+    const mimeType = [
+      "video/mp4;codecs=h264",
+      "video/mp4",
+      "video/webm;codecs=h264",
+      "video/webm;codecs=vp9",
+      "video/webm",
+    ].find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
 
     const mr = new MediaRecorder(stream, { mimeType });
     mediaRecorderRef.current = mr;
@@ -82,17 +92,16 @@ export default function LiveSwingRecorder({ stream }: Props) {
     setState("recording");
     mr.start(100);
 
-    // Record for 5 seconds
     let elapsed = 0;
     const progInterval = setInterval(() => {
       elapsed += 100;
-      setProgress(Math.min(Math.round((elapsed / 5000) * 100), 99));
+      setProgress(Math.min(Math.round((elapsed / RECORD_DURATION) * 100), 99));
     }, 100);
 
     setTimeout(() => {
       clearInterval(progInterval);
       mr.stop();
-    }, 5000);
+    }, RECORD_DURATION);
   };
 
   const reset = () => {
@@ -120,7 +129,7 @@ export default function LiveSwingRecorder({ stream }: Props) {
               }`}
             >
               <Video size={20} />
-              {stream ? "Start Recording (5 sec)" : "Enable camera first"}
+              {stream ? "Start Recording (10 sec)" : "Enable camera first"}
             </motion.button>
           </motion.div>
         )}
@@ -215,7 +224,7 @@ export default function LiveSwingRecorder({ stream }: Props) {
                 quality={report.fault_analysis.swing_quality}
               />
               <div className="flex gap-3">
-                <ReportDownload report={report} />
+                <ReportDownload report={report} jobId={(report as any)._job_id} />
                 <button
                   onClick={reset}
                   className="flex items-center gap-2 px-4 py-2.5 glass rounded-xl text-sm text-white/60 hover:text-white transition-colors"
@@ -224,6 +233,18 @@ export default function LiveSwingRecorder({ stream }: Props) {
                 </button>
               </div>
             </div>
+
+            {/* Annotated Video */}
+            {(report as any)._job_id && report.outputs?.annotated_video && (
+              <VideoPlayer
+                videoUrl={getFileUrl((report as any)._job_id, report.outputs.annotated_video.split(/[\\/]/).pop() ?? report.outputs.annotated_video)}
+                phaseRanges={report.phase_ranges}
+                fps={30}
+                jobId={(report as any)._job_id}
+                filename={report.outputs.annotated_video.split(/[\\/]/).pop()}
+              />
+            )}
+
             <div className="glass rounded-2xl p-6">
               <FaultCards faultDetails={report.fault_analysis.fault_details} />
             </div>

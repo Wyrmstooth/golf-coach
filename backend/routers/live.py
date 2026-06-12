@@ -11,6 +11,7 @@ import base64
 import json
 import sys
 import os
+import uuid
 import tempfile
 import traceback
 from pathlib import Path
@@ -189,11 +190,44 @@ async def live_address_ws(websocket: WebSocket) -> None:
             pass
 
 
+def _check_video(path: str) -> int:
+    """Return frame count if readable, else 0."""
+    cap = cv2.VideoCapture(path)
+    if not cap.isOpened():
+        return 0
+    frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    cap.release()
+    return frames if fps > 0 and width > 0 else 0
+
+
+def _convert_video(src: str, dst: str) -> bool:
+    """Try ffmpeg conversion. Return True on success."""
+    import shutil
+    import subprocess
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return False
+    cmd = [
+        ffmpeg, "-y", "-i", src,
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "128k",
+        "-movflags", "+faststart",
+        dst,
+    ]
+    try:
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+        return _check_video(dst) > 0
+    except Exception:
+        return False
+
+
 @router.post("/live/swing")
 async def live_swing(file: UploadFile = File(...)) -> Any:
     """
     Accept a browser-recorded video blob (webm/mp4), run full MLSwingAnalyzer
-    analysis, and return the report inline (identical shape to /api/report/:id).
+    analysis, persist output under output/{job_id}/ and return report + job_id.
     """
     suffix = Path(file.filename or "swing.mp4").suffix.lower()
     allowed = {".mp4", ".webm", ".mov", ".avi"}
@@ -203,15 +237,32 @@ async def live_swing(file: UploadFile = File(...)) -> Any:
             detail=f"Unsupported format '{suffix}'. Allowed: {allowed}",
         )
 
-    # Save to a temp file
-    tmp_dir = tempfile.mkdtemp()
-    video_path = os.path.join(tmp_dir, f"swing{suffix}")
+    job_id = str(uuid.uuid4())
+    output_dir = str(ROOT / "output" / job_id)
+    os.makedirs(output_dir, exist_ok=True)
+
+    video_path = os.path.join(output_dir, f"input{suffix}")
     content = await file.read()
     with open(video_path, "wb") as f:
         f.write(content)
 
-    output_dir = os.path.join(tmp_dir, "output")
-    os.makedirs(output_dir, exist_ok=True)
+    # ── Validate / convert video ──────────────────────────────────────────
+    frames = _check_video(video_path)
+    if frames == 0:
+        # Try ffmpeg conversion to MP4
+        converted = os.path.join(output_dir, "input_converted.mp4")
+        if _convert_video(video_path, converted):
+            video_path = converted
+            frames = _check_video(video_path)
+        if frames == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Recorded video is unreadable. Try uploading a regular video instead, or use a different browser.",
+            )
+
+    from backend.job_store import job_store
+    job_store.create(job_id, video_path)
+    job_store.update(job_id, output_dir=output_dir)
 
     try:
         from analyze_video import MLSwingAnalyzer  # type: ignore
@@ -223,26 +274,30 @@ async def live_swing(file: UploadFile = File(...)) -> Any:
             verbose=False,
             skip_video_render=False,
         )
-        # Embed file contents as base64 for inline delivery (plots only, not video)
-        _embed_files(report, output_dir)
+
+        # ── Verify annotated video has content ────────────────────────────
+        av_path = report.get("outputs", {}).get("annotated_video")
+        if av_path and os.path.exists(av_path):
+            av_frames = _check_video(av_path)
+            if av_frames == 0:
+                report["outputs"]["annotated_video"] = None
+                report["outputs"]["annotated_video_data_uri"] = None
+
+        job_store.update(
+            job_id,
+            status="done",
+            progress=100,
+            report=report,
+            output_dir=output_dir,
+        )
+
+        report["_job_id"] = job_id
         return JSONResponse(content=report)
     except Exception:
+        job_store.update(job_id, status="error", progress=0, error=traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Analysis failed: {traceback.format_exc()}",
         )
 
 
-def _embed_files(report: Dict[str, Any], output_dir: str) -> None:
-    """
-    Replace local file paths in report['outputs'] with base64-encoded data URIs
-    so the frontend can render them without a separate file-serving endpoint.
-    Only applies to PNG plots (MP4 is too large to embed).
-    """
-    outputs = report.get("outputs", {})
-    for key in ("plot", "ball_plot"):
-        path = outputs.get(key)
-        if path and os.path.exists(path):
-            with open(path, "rb") as f:
-                b64 = base64.b64encode(f.read()).decode()
-            outputs[key] = f"data:image/png;base64,{b64}"

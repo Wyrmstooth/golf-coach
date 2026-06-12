@@ -40,6 +40,7 @@ from backend.routers import analysis as analysis_router
 from backend.routers import live as live_router
 from backend.routers import auth as auth_router
 from backend.routers import sessions as sessions_router
+from backend.routers import admin as admin_router
 from backend.database import init_db
 
 import logging
@@ -62,7 +63,7 @@ def on_startup():
 # Get allowed origins from environment or use defaults
 allowed_origins = os.getenv(
     "ALLOWED_ORIGINS",
-    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
+    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000,https://golf-coach-frontend.onrender.com"
 ).split(",")
 
 # Add middleware for CORS
@@ -84,6 +85,7 @@ app.include_router(analysis_router.router, prefix="/api")
 app.include_router(live_router.router, prefix="/api")
 app.include_router(auth_router.router, prefix="/api")
 app.include_router(sessions_router.router, prefix="/api")
+app.include_router(admin_router.router, prefix="/api")
 
 # Serve frontend static files in production — MUST be AFTER API routers
 # (mounting "/" as StaticFiles catches all unmatched routes, so /api would 405)

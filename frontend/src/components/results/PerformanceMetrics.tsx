@@ -103,7 +103,7 @@ function MetricCard({
 
 /* Confidence bar */
 function ConfidenceBar({ confidence, method }: { confidence: number; method: string }) {
-  const color = confidence > 70 ? "#16a34a" : confidence > 40 ? "#f59e0b" : "#ef4444";
+  const color = confidence > 70 ? "#10b981" : confidence > 40 ? "#f59e0b" : "#ef4444";
   const label = confidence > 70 ? "High" : confidence > 40 ? "Medium" : "Low";
 
   return (
@@ -141,14 +141,17 @@ export default function PerformanceMetrics({ performance, ballTracking }: Props)
   const ballNotDetected = ballTracking?.status?.toLowerCase().includes("not_detected");
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h3 className="text-sm font-semibold text-white/60 uppercase tracking-widest">
-          Performance Prediction
-        </h3>
-        <div className="flex items-center gap-2 glass px-3 py-1 rounded-full">
+        <div className="flex items-center gap-2">
+          <Zap size={15} className="text-golf-green" />
+          <h3 className="text-xs font-semibold text-white/45 uppercase tracking-widest">
+            Performance
+          </h3>
+        </div>
+        <div className="flex items-center gap-2 glass px-3 py-1.5 rounded-full">
           <Target size={11} className="text-golf-green" />
-          <span className="text-xs text-white/50">
+          <span className="text-[10px] text-white/50 font-medium">
             {isVision ? "Vision tracking" : "ML Pose model"}
           </span>
         </div>
@@ -175,26 +178,23 @@ export default function PerformanceMetrics({ performance, ballTracking }: Props)
         </motion.div>
       )}
 
-      {/* Confidence bar */}
-      <ConfidenceBar confidence={confidence} method={method} />
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
           icon={Zap}
           label="Ball Speed"
           value={ballSpeed}
           unit="mph"
-          color="#16a34a"
+          color="#10b981"
           delay={0}
         />
         <MetricCard
           icon={Flag}
-          label="Distance"
+          label="Total Distance"
           value={distance}
           unit="yds"
-          color="#ca8a04"
+          color="#f59e0b"
           delay={0.1}
-          subtitle="Total distance"
+          subtitle="Carry + rollout"
         />
         <MetricCard
           icon={MapPin}
@@ -203,8 +203,13 @@ export default function PerformanceMetrics({ performance, ballTracking }: Props)
           unit="yds"
           color="#3b82f6"
           delay={0.2}
-          subtitle="Carry distance"
+          subtitle="In-air distance"
         />
+      </div>
+
+      {/* Confidence bar */}
+      <div className="glass rounded-xl p-4 space-y-2">
+        <ConfidenceBar confidence={confidence} method={method} />
       </div>
 
       {/* Method info */}

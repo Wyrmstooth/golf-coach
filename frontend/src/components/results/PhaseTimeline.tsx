@@ -38,10 +38,19 @@ const SEVERITY_BG: Record<string, string> = {
 };
 
 function scoreColor(score: number): string {
-  if (score <= 25) return "#16a34a";  // green - excellent
-  if (score <= 45) return "#ca8a04";  // amber - good
-  if (score <= 65) return "#f97316";  // orange - fair
+  if (score >= 85) return "#10b981";  // green - excellent
+  if (score >= 70) return "#22c55e";  // green - good
+  if (score >= 50) return "#f59e0b";  // amber - fair
+  if (score >= 30) return "#f97316";  // orange - poor
   return "#ef4444";                   // red - needs work
+}
+
+function scoreLabel(score: number): string {
+  if (score >= 85) return "Excellent";
+  if (score >= 70) return "Good";
+  if (score >= 50) return "Fair";
+  if (score >= 30) return "Poor";
+  return "Weak";
 }
 
 export default function PhaseTimeline({ phaseRanges, phaseFaultSummary, fps = 30, videoRef }: Props) {
@@ -105,6 +114,7 @@ export default function PhaseTimeline({ phaseRanges, phaseFaultSummary, fps = 30
           const totalFaults = (summary?.counts.critical ?? 0) + (summary?.counts.major ?? 0) + (summary?.counts.minor ?? 0);
           const phaseScore = summary?.score ?? 100;
           const sColor = scoreColor(phaseScore);
+          const sLabel = scoreLabel(phaseScore);
 
           return (
             <motion.button
@@ -128,9 +138,9 @@ export default function PhaseTimeline({ phaseRanges, phaseFaultSummary, fps = 30
               <div className="mb-2">
                 <div className="flex items-center justify-between mb-0.5">
                   <span className="text-[9px] text-white/25">Score</span>
-                  <span className="text-[10px] font-bold" style={{ color: sColor }}>{phaseScore}</span>
+                  <span className="text-[9px] font-bold ml-1" style={{ color: sColor }}>{sLabel}</span>
                 </div>
-                <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                   <motion.div
                     className="h-full rounded-full"
                     style={{ backgroundColor: sColor }}

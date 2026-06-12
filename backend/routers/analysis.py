@@ -81,6 +81,9 @@ def _recover_job_from_disk(job_id: str) -> dict | None:
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
+VALIDATION_FRAME_COUNT = 10  # frames to sample for quick validation
+MIN_POSE_DETECTION_RATIO = 0.3  # at least 30% of sampled frames must have a person
+MIN_PHASE_COUNT = 2  # at least 2 golf swing phases detected
 
 
 def _run_analysis(
@@ -89,6 +92,9 @@ def _run_analysis(
     output_dir: str,
     user_id: int | None = None,
     video_filename: str = "",
+    skip_ball_tracking: bool = False,
+    skip_performance_prediction: bool = False,
+    skip_video_render: bool = False,
 ) -> None:
     """
     Blocking analysis function executed in a thread-pool worker.
@@ -112,7 +118,9 @@ def _run_analysis(
             video_path=video_path,
             output_dir=output_dir,
             verbose=False,
-            skip_video_render=False,
+            skip_video_render=skip_video_render,
+            skip_ball_tracking=skip_ball_tracking,
+            skip_performance_prediction=skip_performance_prediction,
             progress_callback=_on_progress,
         )
         job_store.update(
@@ -156,16 +164,25 @@ def _run_analysis(
 async def analyze_video(
     file: UploadFile = File(...),
     current_user=Depends(get_optional_user),
+    skip_ball_tracking: bool = False,
+    skip_performance_prediction: bool = False,
+    skip_video_render: bool = False,
 ) -> Dict[str, str]:
     """
     Accept a multipart video upload, save it, kick off background analysis,
     and return the job_id for polling.
+
+    Optional query params:
+        skip_ball_tracking — skip Module 3 ball trajectory tracking
+        skip_performance_prediction — skip ML performance prediction
+        skip_video_render — skip creating annotated video
     """
     logger.info(f"Analyze endpoint called. Current user: {current_user}")
     if current_user:
         logger.info(f"  User ID: {current_user.id}, Email: {current_user.email}")
     else:
         logger.info("  No user logged in (anonymous analysis)")
+    logger.info(f"  Options: skip_ball={skip_ball_tracking}, skip_perf={skip_performance_prediction}, skip_video={skip_video_render}")
     
     suffix = Path(file.filename or "video.mp4").suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
@@ -202,6 +219,9 @@ async def analyze_video(
         output_dir,
         user_id,
         file.filename or "",
+        skip_ball_tracking,
+        skip_performance_prediction,
+        skip_video_render,
     )
 
     return {"job_id": job_id}
@@ -284,7 +304,108 @@ async def delete_job(job_id: str) -> Dict[str, str]:
     if output_dir:
         import shutil
         shutil.rmtree(output_dir, ignore_errors=True)
-    # Remove from store
     with job_store._lock:
         job_store._store.pop(job_id, None)
     return {"detail": "Job deleted."}
+
+
+@router.post("/validate")
+async def validate_video(
+    file: UploadFile = File(...),
+) -> Dict[str, Any]:
+    """
+    Quick pre-validation to check if uploaded video contains a golf swing.
+    Samples frames, runs pose detection, checks for person + swing phases.
+    Much faster than full analysis (~5-10 seconds).
+    """
+    suffix = Path(file.filename or "video.mp4").suffix.lower()
+    if suffix not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{suffix}'. Allowed: {ALLOWED_EXTENSIONS}",
+        )
+
+    import cv2
+    import numpy as np
+
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    try:
+        total_size = 0
+        while chunk := await file.read(1024 * 1024):
+            total_size += len(chunk)
+            if total_size > MAX_FILE_SIZE:
+                raise HTTPException(status_code=413, detail="File too large (max 500 MB).")
+            tmp.write(chunk)
+        tmp.close()
+
+        cap = cv2.VideoCapture(tmp.name)
+        if not cap.isOpened():
+            raise HTTPException(status_code=400, detail="Cannot open video file. The file may be corrupted.")
+
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        duration = total_frames / fps if fps > 0 else 0
+
+        if total_frames < 10:
+            cap.release()
+            raise HTTPException(status_code=400, detail="Video is too short. Needs at least 10 frames for analysis.")
+
+        if duration > 300:
+            cap.release()
+            raise HTTPException(status_code=400, detail=f"Video is too long ({duration:.0f}s). Max 5 minutes for analysis.")
+
+        sample_indices = np.linspace(0, total_frames - 1, min(VALIDATION_FRAME_COUNT, total_frames), dtype=int)
+        samples = []
+        for idx in sample_indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+            ret, frame = cap.read()
+            if ret:
+                samples.append(frame)
+        cap.release()
+
+        if len(samples) < 3:
+            raise HTTPException(status_code=400, detail="Could not extract enough frames from video.")
+
+        try:
+            from pose_detector import PoseDetector
+            detector = PoseDetector("config.yaml")
+        except Exception as e:
+            logger.warning(f"Pose detector init failed during validation: {e}")
+            return {
+                "valid": True,
+                "warning": "Pose detector unavailable, skipping validation",
+                "frame_count": total_frames,
+                "duration_sec": round(duration, 1),
+            }
+
+        pose_frames = 0
+        for frame in samples:
+            landmarks, _ = detector.process_frame(frame)
+            if landmarks is not None and len(landmarks) > 0:
+                pose_frames += 1
+
+        pose_ratio = pose_frames / len(samples)
+        logger.info(f"Video validation: {pose_frames}/{len(samples)} frames have pose (ratio={pose_ratio:.2f})")
+
+        if pose_ratio < MIN_POSE_DETECTION_RATIO:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"No person or golf swing detected in video. "
+                    f"Only {pose_frames}/{len(samples)} sample frames contained a human pose. "
+                    f"Please upload a clear video of a golf swing with a visible person."
+                ),
+            )
+
+        return {
+            "valid": True,
+            "frame_count": total_frames,
+            "duration_sec": round(duration, 1),
+            "fps": round(fps, 1),
+            "pose_detection_ratio": round(pose_ratio, 2),
+        }
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass

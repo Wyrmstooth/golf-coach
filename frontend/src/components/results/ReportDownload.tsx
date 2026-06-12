@@ -15,57 +15,57 @@ import type { AnalysisReport } from "../../api/analysis";
 // ---------- PDF Styles ----------
 const styles = StyleSheet.create({
   page: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#090d14",
     color: "#ffffff",
     fontFamily: "Helvetica",
     padding: 36,
   },
   header: {
     borderBottomWidth: 2,
-    borderBottomColor: "#16a34a",
+    borderBottomColor: "#10b981",
     paddingBottom: 12,
     marginBottom: 20,
   },
-  title:    { fontSize: 24, fontFamily: "Helvetica-Bold", color: "#16a34a", marginBottom: 4 },
+  title:    { fontSize: 24, fontFamily: "Helvetica-Bold", color: "#10b981", marginBottom: 4 },
   subtitle: { fontSize: 10, color: "#94a3b8" },
   sectionTitle: {
-    fontSize: 13, fontFamily: "Helvetica-Bold", color: "#16a34a",
+    fontSize: 13, fontFamily: "Helvetica-Bold", color: "#10b981",
     marginBottom: 8, marginTop: 16, borderBottomWidth: 1,
-    borderBottomColor: "#1e293b", paddingBottom: 4,
+    borderBottomColor: "#131c31", paddingBottom: 4,
   },
   row:        { flexDirection: "row", marginBottom: 4 },
-  cell:       { flex: 1, fontSize: 9, color: "#cbd5e1", padding: 6, backgroundColor: "#1e293b", marginRight: 4 },
-  cellHeader: { flex: 1, fontSize: 9, fontFamily: "Helvetica-Bold", color: "#16a34a", padding: 6, backgroundColor: "#052e16", marginRight: 4 },
-  faultBox:   { backgroundColor: "#1e293b", padding: 8, marginBottom: 6, borderRadius: 4 },
+  cell:       { flex: 1, fontSize: 9, color: "#cbd5e1", padding: 6, backgroundColor: "#131c31", marginRight: 4 },
+  cellHeader: { flex: 1, fontSize: 9, fontFamily: "Helvetica-Bold", color: "#10b981", padding: 6, backgroundColor: "#022c22", marginRight: 4 },
+  faultBox:   { backgroundColor: "#131c31", padding: 8, marginBottom: 6, borderRadius: 4 },
   faultTitle: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#ffffff", marginBottom: 2 },
   faultDesc:  { fontSize: 8, color: "#94a3b8", marginBottom: 2 },
-  faultFix:   { fontSize: 8, color: "#16a34a" },
+  faultFix:   { fontSize: 8, color: "#10b981" },
   faultMeasurement: { fontSize: 8, color: "#cbd5e1", marginBottom: 2 },
   critical: { color: "#ef4444" },
   major:    { color: "#f97316" },
   minor:    { color: "#eab308" },
-  scoreBox:   { backgroundColor: "#052e16", padding: 16, borderRadius: 8, alignItems: "center", marginBottom: 16 },
-  scoreNum:   { fontSize: 48, fontFamily: "Helvetica-Bold", color: "#16a34a" },
+  scoreBox:   { backgroundColor: "#022c22", padding: 16, borderRadius: 8, alignItems: "center", marginBottom: 16 },
+  scoreNum:   { fontSize: 48, fontFamily: "Helvetica-Bold", color: "#10b981" },
   scoreLabel: { fontSize: 12, color: "#94a3b8" },
-  metric:      { flex: 1, backgroundColor: "#1e293b", padding: 10, marginRight: 4, borderRadius: 4, alignItems: "center" },
-  metricValue: { fontSize: 20, fontFamily: "Helvetica-Bold", color: "#ca8a04" },
+  metric:      { flex: 1, backgroundColor: "#131c31", padding: 10, marginRight: 4, borderRadius: 4, alignItems: "center" },
+  metricValue: { fontSize: 20, fontFamily: "Helvetica-Bold", color: "#f59e0b" },
   metricLabel: { fontSize: 8, color: "#94a3b8", marginTop: 2 },
-  footer:     { position: "absolute", bottom: 20, left: 36, right: 36, flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#1e293b", paddingTop: 8 },
+  footer:     { position: "absolute", bottom: 20, left: 36, right: 36, flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#131c31", paddingTop: 8 },
   footerText: { fontSize: 7, color: "#475569" },
 
   // ── Phase section — stacked layout (image full-width on top, faults below) ───
-  phaseSection:  { marginBottom: 20, borderWidth: 1, borderColor: "#1e293b", borderRadius: 6 },
-  phaseHeader:   { fontSize: 12, fontFamily: "Helvetica-Bold", color: "#ffffff", backgroundColor: "#052e16", padding: 10, borderRadius: 4 },
-  phaseScore:    { fontSize: 9, color: "#16a34a", fontFamily: "Helvetica-Bold" },
+  phaseSection:  { marginBottom: 20, borderWidth: 1, borderColor: "#131c31", borderRadius: 6 },
+  phaseHeader:   { fontSize: 12, fontFamily: "Helvetica-Bold", color: "#ffffff", backgroundColor: "#022c22", padding: 10, borderRadius: 4 },
+  phaseScore:    { fontSize: 9, color: "#10b981", fontFamily: "Helvetica-Bold" },
   // A4 usable width = 595 - 2*36 = 523pt
   phaseImg:      { width: 523, height: 270 },
-  phaseImgPlaceholder: { width: 523, height: 50, backgroundColor: "#1e293b", justifyContent: "center", alignItems: "center" },
+  phaseImgPlaceholder: { width: 523, height: 50, backgroundColor: "#131c31", justifyContent: "center", alignItems: "center" },
   phaseImgPlaceholderText: { fontSize: 8, color: "#475569" },
-  imgCaption:    { fontSize: 7, color: "#64748b", paddingLeft: 8, paddingBottom: 6, backgroundColor: "#0a1628" },
+  imgCaption:    { fontSize: 7, color: "#64748b", paddingLeft: 8, paddingBottom: 6, backgroundColor: "#070b14" },
   phaseFaults:   { padding: 8 },
-  noFaults:      { fontSize: 9, color: "#16a34a", padding: 6 },
+  noFaults:      { fontSize: 9, color: "#10b981", padding: 6 },
   warningBox:    { backgroundColor: "#f9731620", padding: 8, borderRadius: 4, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: "#f97316" },
-  successBox:    { backgroundColor: "#16a34a15", padding: 8, borderRadius: 4, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: "#16a34a" },
+  successBox:    { backgroundColor: "#10b98115", padding: 8, borderRadius: 4, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: "#10b981" },
 });
 
 const PHASE_ORDER  = ["ADDRESS", "BACKSWING", "TOP", "DOWNSWING", "IMPACT", "FOLLOW_THROUGH"];
@@ -74,7 +74,7 @@ const PHASE_LABELS: Record<string, string> = {
   DOWNSWING: "Downswing", IMPACT: "Impact", FOLLOW_THROUGH: "Follow Through",
 };
 const SEV_BORDER: Record<string, string> = {
-  critical: "#ef4444", major: "#f97316", minor: "#eab308", none: "#16a34a",
+  critical: "#ef4444", major: "#f97316", minor: "#eab308", none: "#10b981",
 };
 
 // ---------- PDF Document ----------
@@ -111,7 +111,7 @@ function GolfReport({ report, analysisDate, phaseImages }: GolfReportProps) {
         <View style={styles.scoreBox}>
           <Text style={styles.scoreNum}>{score.toFixed(0)}</Text>
           <Text style={styles.scoreLabel}>Overall Swing Score / 100</Text>
-          <Text style={{ fontSize: 14, color: "#16a34a", marginTop: 4, fontFamily: "Helvetica-Bold" }}>{quality}</Text>
+          <Text style={{ fontSize: 14, color: "#10b981", marginTop: 4, fontFamily: "Helvetica-Bold" }}>{quality}</Text>
         </View>
 
         <Text style={styles.sectionTitle}>Fault Summary</Text>
@@ -206,7 +206,7 @@ function GolfReport({ report, analysisDate, phaseImages }: GolfReportProps) {
             return (
               <View
                 key={phase}
-                style={[styles.phaseSection, { borderLeftWidth: 4, borderLeftColor: SEV_BORDER[maxSev] ?? "#16a34a" }]}
+                style={[styles.phaseSection, { borderLeftWidth: 4, borderLeftColor: SEV_BORDER[maxSev] ?? "#10b981" }]}
                 wrap={false}
               >
                 {/* Phase header */}
@@ -237,7 +237,7 @@ function GolfReport({ report, analysisDate, phaseImages }: GolfReportProps) {
                     phaseFaults.map((f, i) => (
                       <View
                         key={i}
-                        style={[styles.faultBox, { borderLeftWidth: 2, borderLeftColor: SEV_BORDER[f.severity] ?? "#16a34a" }]}
+                        style={[styles.faultBox, { borderLeftWidth: 2, borderLeftColor: SEV_BORDER[f.severity] ?? "#10b981" }]}
                       >
                         <Text style={[styles.faultTitle, styles[(f.severity as "critical"|"major"|"minor")] ?? {}]}>
                           [{f.severity.toUpperCase()}] {f.title}
@@ -269,7 +269,7 @@ function GolfReport({ report, analysisDate, phaseImages }: GolfReportProps) {
 
         {report.ball_tracking?.enabled ? (
           <View style={styles.successBox}>
-            <Text style={{ fontSize: 10, color: "#16a34a", fontFamily: "Helvetica-Bold" }}>
+            <Text style={{ fontSize: 10, color: "#10b981", fontFamily: "Helvetica-Bold" }}>
               ✓ Ball tracking was active for this analysis
             </Text>
           </View>

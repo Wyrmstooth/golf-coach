@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Camera, CameraOff, Activity, Video } from "lucide-react";
+import { Camera, CameraOff, Activity, Video, Info } from "lucide-react";
 
 import PageWrapper from "../components/layout/PageWrapper";
 import CameraFeed from "../components/live/CameraFeed";
 import AddressMetrics from "../components/live/AddressMetrics";
 import LiveSwingRecorder from "../components/live/LiveSwingRecorder";
+import VoiceCoach from "../components/live/VoiceCoach";
 import { useLiveAddress } from "../hooks/useLiveAddress";
 
 type Tab = "address" | "swing";
@@ -40,7 +41,6 @@ export default function LivePage() {
     else startCamera();
   };
 
-  // When tab === address and camera is on, connect WS
   useEffect(() => {
     if (tab === "address" && stream && !connected) {
       connect();
@@ -50,28 +50,26 @@ export default function LivePage() {
     }
   }, [tab, stream, connected, connect, disconnect]);
 
-  // Cleanup on unmount
   useEffect(() => () => { stream?.getTracks().forEach((t) => t.stop()); }, [stream]);
 
   return (
     <PageWrapper className="bg-golf-navy">
-      <div className="max-w-7xl mx-auto px-6 py-10">
-        {/* Header */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="font-display text-4xl font-bold">
+          <h1 className="font-display text-3xl sm:text-4xl font-bold">
             Live <span className="text-gradient">Feedback</span>
           </h1>
-          <p className="text-white/40 mt-2">
+          <p className="text-white/45 mt-2 text-sm sm:text-base">
             Real-time posture correction and swing analysis using your webcam.
           </p>
         </motion.div>
 
         {/* Tab toggle */}
-        <div className="flex gap-2 mb-8 glass p-1 rounded-xl w-fit">
+        <div className="flex gap-1.5 mb-8 glass p-1.5 rounded-xl w-fit">
           {[
             { id: "address" as Tab, label: "Address Check", icon: Activity },
             { id: "swing" as Tab, label: "Record Swing", icon: Video },
@@ -81,8 +79,8 @@ export default function LivePage() {
               onClick={() => setTab(id)}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
                 tab === id
-                  ? "bg-golf-green text-white shadow-glow"
-                  : "text-white/50 hover:text-white"
+                  ? "bg-golf-green/10 text-golf-green ring-1 ring-golf-green/25"
+                  : "text-white/45 hover:text-white/70"
               }`}
             >
               <Icon size={15} />
@@ -94,17 +92,16 @@ export default function LivePage() {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Camera column */}
           <div className="lg:col-span-2 space-y-4">
-            {/* Camera toggle */}
             <div className="flex justify-between items-center">
-              <h3 className="text-sm font-semibold text-white/60 uppercase tracking-widest">Camera Feed</h3>
+              <h3 className="text-xs font-semibold text-white/50 uppercase tracking-widest">Camera Feed</h3>
               <motion.button
-                whileHover={{ scale: 1.05 }}
+                whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={toggleCamera}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
                   stream
-                    ? "bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30"
-                    : "bg-golf-green/20 border border-golf-green/40 text-golf-green hover:bg-golf-green/30 shadow-glow"
+                    ? "bg-red-500/10 border border-red-500/25 text-red-400 hover:bg-red-500/20"
+                    : "bg-golf-green/10 border border-golf-green/25 text-golf-green hover:bg-golf-green/20 shadow-glow"
                 }`}
               >
                 {stream ? <CameraOff size={15} /> : <Camera size={15} />}
@@ -113,7 +110,7 @@ export default function LivePage() {
             </div>
 
             {cameraError && (
-              <div className="glass rounded-xl px-4 py-3 text-red-400 text-sm border border-red-500/30">
+              <div className="glass rounded-xl px-4 py-3 text-red-400 text-sm border border-red-500/20">
                 {cameraError}
               </div>
             )}
@@ -135,24 +132,30 @@ export default function LivePage() {
           <div className="space-y-4">
             {tab === "address" ? (
               <>
-                <h3 className="text-sm font-semibold text-white/60 uppercase tracking-widest">
-                  Real-time Feedback
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold text-white/50 uppercase tracking-widest">
+                    Real-time Feedback
+                  </h3>
+                  <VoiceCoach feedback={feedback} connected={connected} />
+                </div>
                 <AddressMetrics feedback={feedback} connected={connected} poseHoldMs={poseHoldMs} />
-                <div className="glass rounded-xl p-4 text-xs text-white/40 space-y-1 leading-relaxed">
-                  <p className="font-semibold text-white/60">How to use:</p>
-                  <p>1. Start your camera</p>
+                <div className="glass rounded-xl p-4 text-xs text-white/45 space-y-1.5 leading-relaxed">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Info size={12} className="text-white/30" />
+                    <span className="font-semibold text-white/55">How to use</span>
+                  </div>
+                  <p>1. Start your camera and enable <span className="text-golf-green/80">Voice Coach</span> for hands-free guidance</p>
                   <p>2. Stand in your address position, facing the camera</p>
                   <p>3. Get real-time feedback on your spine, knee, and arm angles</p>
-                  <p>4. Adjust until all metrics show green</p>
+                  <p>4. Adjust until all metrics show green — voice will confirm when ready</p>
                 </div>
               </>
             ) : (
               <div className="glass rounded-2xl p-6 space-y-4">
-                <h3 className="text-sm font-semibold text-white/60 uppercase tracking-widest">
+                <h3 className="text-xs font-semibold text-white/50 uppercase tracking-widest">
                   How to Record
                 </h3>
-                <div className="space-y-3 text-xs text-white/50 leading-relaxed">
+                <div className="space-y-3 text-xs text-white/45 leading-relaxed">
                   <div className="flex items-start gap-2">
                     <span className="font-bold text-golf-green">1.</span>
                     <span>Start your camera and position it to capture your full swing</span>
@@ -170,7 +173,7 @@ export default function LivePage() {
                     <span>Your video is sent for AI analysis — results appear in ~2 minutes</span>
                   </div>
                 </div>
-                <div className="glass-green rounded-xl p-3 text-xs text-golf-green/70">
+                <div className="glass-green rounded-xl p-3 text-xs text-golf-green/80">
                   Tip: For best results, set up the camera at hip height, 8–12 feet away, facing you from the side.
                 </div>
               </div>

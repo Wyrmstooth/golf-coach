@@ -48,22 +48,21 @@ export default function ProfilePage() {
   });
 
   return (
-    <div className="min-h-screen bg-golf-navy pt-24 pb-16 px-6">
+    <div className="min-h-screen bg-golf-navy pt-20 sm:pt-24 pb-16 px-4 sm:px-6">
       <div className="max-w-xl mx-auto space-y-6">
 
-        {/* Header */}
         <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-display font-bold text-3xl text-white">Profile</h1>
-          <p className="text-white/35 text-sm mt-1">Manage your account details</p>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">Profile</h1>
+          <p className="text-white/40 text-sm mt-1">Manage your account details</p>
         </motion.div>
 
-        {/* Avatar + info card */}
+        {/* Avatar + info */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           className="glass rounded-2xl p-6 flex items-center gap-5"
         >
-          <div className="w-16 h-16 rounded-2xl bg-golf-green/20 border border-golf-green/30 flex items-center justify-center flex-shrink-0">
+          <div className="w-16 h-16 rounded-2xl bg-golf-green/10 ring-1 ring-golf-green/20 flex items-center justify-center flex-shrink-0">
             <span className="text-golf-green font-bold text-xl font-display">
               {user.avatar_initials ?? user.display_name.slice(0, 2).toUpperCase()}
             </span>
@@ -71,7 +70,7 @@ export default function ProfilePage() {
           <div className="min-w-0">
             <p className="text-white font-semibold text-lg leading-tight">{user.display_name}</p>
             <p className="text-white/40 text-sm mt-0.5">{user.email}</p>
-            <p className="text-white/20 text-xs mt-1">Member since {joinDate}</p>
+            <p className="text-white/25 text-xs mt-1">Member since {joinDate}</p>
           </div>
         </motion.div>
 
@@ -82,13 +81,13 @@ export default function ProfilePage() {
           transition={{ delay: 0.05 }}
           className="glass rounded-2xl p-6 space-y-5"
         >
-          <h2 className="text-sm font-semibold text-white/60 uppercase tracking-widest">Edit Details</h2>
+          <h2 className="text-xs font-semibold text-white/50 uppercase tracking-widest">Edit Details</h2>
 
           {error && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3"
+              className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/15 rounded-xl px-4 py-3"
             >
               <AlertCircle size={15} className="flex-shrink-0" />
               {error}
@@ -96,42 +95,39 @@ export default function ProfilePage() {
           )}
 
           <form onSubmit={handleSave} className="space-y-4">
-            {/* Email (read-only) */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-white/40 uppercase tracking-widest">Email</label>
+              <label className="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Email</label>
               <div className="relative">
-                <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/15 pointer-events-none" />
+                <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/12 pointer-events-none" />
                 <input
                   type="email"
                   disabled
                   value={user.email}
-                  className="w-full bg-white/3 border border-white/6 rounded-xl pl-10 pr-4 py-3 text-sm text-white/30 cursor-not-allowed"
+                  className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl pl-10 pr-4 py-3 text-sm text-white/25 cursor-not-allowed"
                 />
               </div>
             </div>
 
-            {/* Display name */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Display Name</label>
+              <label className="text-[11px] font-semibold text-white/45 uppercase tracking-widest">Display Name</label>
               <div className="relative">
-                <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
+                <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none" />
                 <input
                   type="text"
                   required
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-golf-green/50 focus:ring-2 focus:ring-golf-green/20 transition-all"
+                  className="w-full bg-white/[0.05] border border-white/[0.10] rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-white/15 outline-none focus:border-golf-green/40 focus:ring-2 focus:ring-golf-green/15 transition-all"
                 />
               </div>
             </div>
 
-            {/* Handicap */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">
+              <label className="text-[11px] font-semibold text-white/45 uppercase tracking-widest">
                 Handicap Index
               </label>
               <div className="relative">
-                <Hash size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
+                <Hash size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none" />
                 <input
                   type="number"
                   step="0.1"
@@ -140,7 +136,7 @@ export default function ProfilePage() {
                   value={handicap}
                   onChange={(e) => setHandicap(e.target.value)}
                   placeholder="e.g. 18.4"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-golf-green/50 focus:ring-2 focus:ring-golf-green/20 transition-all"
+                  className="w-full bg-white/[0.05] border border-white/[0.10] rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-white/15 outline-none focus:border-golf-green/40 focus:ring-2 focus:ring-golf-green/15 transition-all"
                 />
               </div>
             </div>
@@ -150,10 +146,10 @@ export default function ProfilePage() {
               disabled={saving}
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
-              className={`w-full flex items-center justify-center gap-2 font-semibold py-3 rounded-xl transition-colors ${
+              className={`w-full flex items-center justify-center gap-2 font-semibold py-3 rounded-xl transition-all ${
                 saved
-                  ? "bg-golf-green/20 text-golf-green border border-golf-green/30"
-                  : "bg-golf-green text-white hover:bg-golf-green/90"
+                  ? "bg-golf-green/10 text-golf-green border border-golf-green/20"
+                  : "btn-primary"
               } disabled:opacity-50`}
             >
               {saving ? (
@@ -177,14 +173,14 @@ export default function ProfilePage() {
           </form>
         </motion.div>
 
-        {/* Danger zone */}
+        {/* Sign out */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="glass rounded-2xl p-6 space-y-3 border border-red-500/10"
         >
-          <h2 className="text-xs font-semibold text-white/30 uppercase tracking-widest">Account</h2>
+          <h2 className="text-[11px] font-semibold text-white/30 uppercase tracking-widest">Account</h2>
           <button
             onClick={handleLogout}
             className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300 transition-colors font-medium"
