@@ -15,10 +15,12 @@
 1. [Quick Start](#-quick-start) — 5-minute setup
 2. [System Requirements](#-system-requirements)
 3. [Installation](#-installation)
-4. [Running the Application](#-running-the-application)
-5. [Features](#-features)
-6. [Troubleshooting](#-troubleshooting)
-7. [Architecture](#-architecture)
+4. [Models & Datasets](#-models--datasets-setup) — Model downloads & dataset setup
+5. [Running the Application](#-running-the-application)
+6. [Features](#-features)
+7. [First Time Usage](#-first-time-usage)
+8. [Troubleshooting](#-troubleshooting)
+9. [Architecture](#-architecture)
 
 ---
 
@@ -166,7 +168,143 @@ cd ..
 
 ---
 
-## 🚀 Running the Application
+## � Models & Datasets Setup
+
+### Pre-trained Models
+
+The application requires several AI models to run. Most are downloaded automatically, but some may need to be set up manually.
+
+**Models Location:** `golf-dashboard/models/`
+
+| Model | Size | Description | Auto-Download |
+|-------|------|-------------|----------------|
+| `pose_landmarker_full.task` | 26 MB | MediaPipe pose detection | ✅ Auto |
+| `fault_detector.pt` | 50 MB | PyTorch fault classifier | ✅ Auto |
+| `performance_predictor.pt` | 30 MB | Distance/speed predictor | ✅ Auto |
+| `ball_detector.pt` (FRCNN) | 140 MB | Faster R-CNN ball detector | ⚠️ Manual |
+
+**To download models manually:**
+
+```bash
+cd models
+# Download ball detector (largest model - if auto-download fails)
+# Get it from: https://github.com/Wyrmstooth/golf-coach/releases/download/v1.0/golf_ball_frcnn.pt
+# Place it in: golf-dashboard/models/golf_ball_frcnn.pt
+
+# Verify all models are present
+ls models/
+```
+
+Expected files in `models/`:
+```
+├── ball_detector.pt
+├── fault_detector.pt
+├── golf_ball_frcnn.pt
+├── performance_predictor.pt
+├── pose_landmarker_full.task
+└── training_report.json
+```
+
+---
+
+### 🎯 Ball Detection Dataset
+
+The ball detection model is trained on the **RUCV Golf Ball Dataset** from the research paper:
+
+**Paper:** Zhang et al., "Golf Ball Detection and Tracking in Video" (IEEE SMC 2020)  
+**Repo:** https://github.com/rucv/golf_ball  
+**Dataset:** https://drive.google.com/file/d/10pzr6mDQPlrylIHg8CdXzHkF4WBMZxfn/view
+
+#### Setup Ball Dataset (for training)
+
+1. **Download** the dataset from Google Drive:
+   ```
+   https://drive.google.com/file/d/10pzr6mDQPlrylIHg8CdXzHkF4WBMZxfn/view
+   ```
+
+2. **Extract** to your project:
+   ```bash
+   # After downloading, extract to:
+   mkdir -p datasets/golf_ball
+   # Copy the extracted files to datasets/golf_ball/
+   ```
+
+3. **Verify structure:**
+   ```bash
+   ls datasets/golf_ball/
+   # Expected: JPEGImages/ Annotations/ (VOC format)
+   ```
+
+4. **Re-train the detector** (optional):
+   ```bash
+   conda activate golfpose
+   python training/train_golf_ball_detector.py --data ./datasets/golf_ball --epochs 30
+   ```
+
+#### Ball Detector Models
+
+| Model | Architecture | Paper | Size |
+|-------|--------------|-------|------|
+| `golf_ball_frcnn.pt` | Faster R-CNN + ResNet-50 FPN | Zhang et al., IEEE SMC 2020 | 140 MB |
+| `ball_detector.pt` | YOLOv8 (legacy) | Ultralytics YOLOv8 | 25 MB |
+
+The default is **Faster R-CNN**, which is more accurate but slightly slower.
+
+---
+
+### Sample Data & Datasets
+
+**Calibration & Training Videos** (for advanced users)
+
+```
+golf-dashboard/
+├── good_swings/              # Reference good swing videos
+├── bad_swings/               # Reference bad swing videos
+├── test_videos/
+│   ├── good_swings/          # Test videos
+│   └── bad_swings/
+└── training_data/
+    ├── golf_swings_dataset.csv     # Dataset metadata
+    ├── dataset_statistics.csv      # Statistics
+    ├── train_videos.txt            # Training set list
+    └── test_videos.txt             # Test set list
+```
+
+**To use your own swing videos for training:**
+
+1. Place swing videos in `good_swings/` or `bad_swings/` folders
+2. Update `training_data/golf_swings_dataset.csv` with video metadata
+3. Run calibration:
+   ```bash
+   conda activate golfpose
+   python _good_swing_ranges.py
+   ```
+
+---
+
+### CaddieSet Dataset
+
+The project includes the **CaddieSet** golf swing dataset:
+
+```bash
+# CaddieSet CSV file
+cat CaddieSet.csv
+```
+
+This contains calibrated swing data for good vs. bad swings, used for training the fault detector.
+
+**To re-train models with new data:**
+
+```bash
+cd training
+python prepare_train_test_split.py      # Prepare data
+python run_pytorch_training_pipeline.py # Train models
+python train_pytorch_models.py          # Fine-tune specific models
+```
+
+---
+
+## �🚀 Running the Application
 
 ### Option 1: Automated Startup (Windows - Recommended)
 
@@ -354,6 +492,57 @@ rm golf.db
 **Solution:**
 - Close other applications
 - Consider adding a GPU if processing large videos frequently
+
+---
+
+### Problem: "FileNotFoundError: models/golf_ball_frcnn.pt" or other models missing
+
+**Solution:**
+```bash
+# Check what models are present
+ls models/
+
+# If ball_detector.pt is missing, download it manually:
+# https://github.com/Wyrmstooth/golf-coach/releases/download/v1.0/golf_ball_frcnn.pt
+# Place it in: golf-dashboard/models/
+
+# Verify all required models are present:
+python -c "import os; models = ['pose_landmarker_full.task', 'fault_detector.pt', 'performance_predictor.pt', 'ball_detector.pt']; [print(f'✓ {m}' if os.path.exists(f'models/{m}') else f'✗ MISSING: {m}') for m in models]"
+```
+
+---
+
+### Problem: "Out of Memory" when loading models
+
+**Causes:**
+- Your system doesn't have enough RAM
+- GPU memory is full
+
+**Solutions:**
+```bash
+# Use CPU-only mode (slower but uses less memory)
+# Edit backend/main.py or utils/pose_detector.py and set device='cpu'
+
+# Or close other applications to free up RAM
+# Restart the backend
+```
+
+---
+
+### Problem: "Model download timeout" or "Connection error"
+
+**Solution:**
+```bash
+# Manually download models from the release page:
+# https://github.com/Wyrmstooth/golf-coach/releases
+
+# Place them in the models/ folder:
+cd models
+# Download each .pt file and place here
+cd ..
+
+# Restart the backend
+```
 
 ---
 
